@@ -35,6 +35,7 @@ You need an OpenAI API key in your environment (`OPENAI_API_KEY`).
 Start the web server and upload files through the browser:
 
 ```bash
+cd /path/to/math-research-tools
 uvicorn web.app:app --reload
 ```
 
