@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Knowledge Graph Builder</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div id="tooltip"></div>
+
+    <!-- Upload View -->
+    <div id="upload-view" class="view active">
+        <div class="container">
+            <h1>Knowledge Graph Builder</h1>
+            <p class="subtitle">Upload research papers (PDF, TXT, MD) to build an interactive knowledge graph</p>
+
+            <div class="drop-zone" id="drop-zone">
+                <div class="drop-zone-icon">+</div>
+                <div class="drop-zone-text">Drop files here or click to browse</div>
+                <div class="drop-zone-hint">Supports PDF, TXT, and MD files (max 80 files)</div>
+            </div>
+            <input type="file" class="file-input" id="file-input"
+                   multiple accept=".pdf,.txt,.md,.text,.markdown">
+
+            <div class="file-list" id="file-list"></div>
+            <div class="file-count" id="file-count"></div>
+
+            <button class="btn btn-primary" id="build-btn" disabled>
+                Build Knowledge Graph
+            </button>
+        </div>
+    </div>
+
+    <!-- Progress View -->
+    <div id="progress-view" class="view">
+        <div class="container">
+            <h1>Building Knowledge Graph</h1>
+            <p class="subtitle" id="progress-subtitle">Processing your files...</p>
+
+            <div class="progress-container">
+                <div class="stage-indicator">
+                    <div class="stage" id="stage-ingesting">Ingesting</div>
+                    <div class="stage" id="stage-extracting">Extracting</div>
+                    <div class="stage" id="stage-building">Building</div>
+                </div>
+
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+
+                <div class="progress-detail" id="progress-detail">Starting...</div>
+
+                <div class="log-area" id="log-area"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Graph View -->
+    <div id="graph-view" class="view">
+        <div class="graph-controls">
+            <div><strong style="color:#eee">Knowledge Graph</strong></div>
+            <input type="text" id="graph-search" placeholder="Search concepts..."
+                   oninput="searchNodes(this.value)">
+            <div id="search-results"></div>
+            <div class="hint">Drag nodes · Scroll to zoom · Click to highlight · Dbl-click to reset</div>
+        </div>
+        <div class="graph-legend" id="graph-legend"></div>
+        <div class="graph-back">
+            <button class="btn" onclick="showView('upload-view')">New Graph</button>
+        </div>
+        <svg id="graph-svg"></svg>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>

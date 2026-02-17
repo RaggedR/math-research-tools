@@ -1,0 +1,357 @@
+/* Knowledge Graph Builder — Dark theme matching existing visualization */
+
+:root {
+    --bg-primary: #1a1a2e;
+    --bg-secondary: #16213e;
+    --bg-card: #0f3460;
+    --bg-input: #1a1a3e;
+    --text-primary: #e0e0e0;
+    --text-secondary: #aaa;
+    --text-muted: #666;
+    --accent: #4A90D9;
+    --accent-hover: #5DA0E9;
+    --success: #2ECC71;
+    --warning: #F39C12;
+    --error: #E74C3C;
+    --border: #333;
+    --border-hover: #555;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh;
+}
+
+/* ── Layout ─────────────────────────────────────── */
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 40px 20px;
+}
+
+h1 {
+    font-size: 24px;
+    margin-bottom: 8px;
+}
+
+.subtitle {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 32px;
+}
+
+/* ── Views ──────────────────────────────────────── */
+
+.view { display: none; }
+.view.active { display: block; }
+
+#graph-view.active {
+    display: block;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+}
+
+/* ── Upload View ────────────────────────────────── */
+
+.drop-zone {
+    border: 2px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: var(--bg-secondary);
+}
+
+.drop-zone:hover, .drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(74, 144, 217, 0.08);
+}
+
+.drop-zone-icon {
+    font-size: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+}
+
+.drop-zone-text {
+    font-size: 16px;
+    color: var(--text-secondary);
+}
+
+.drop-zone-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 8px;
+}
+
+.file-input {
+    display: none;
+}
+
+.file-list {
+    margin-top: 20px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+}
+
+.file-item:last-child { border-bottom: none; }
+
+.file-name {
+    color: var(--text-primary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+}
+
+.file-size {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin-left: 12px;
+    flex-shrink: 0;
+}
+
+.file-remove {
+    color: var(--text-muted);
+    cursor: pointer;
+    margin-left: 8px;
+    font-size: 16px;
+    flex-shrink: 0;
+}
+
+.file-remove:hover { color: var(--error); }
+
+.file-count {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.btn {
+    display: inline-block;
+    padding: 10px 24px;
+    border-radius: 6px;
+    border: none;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background: var(--accent);
+    color: white;
+    margin-top: 20px;
+}
+
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+/* ── Progress View ──────────────────────────────── */
+
+.progress-container {
+    margin-top: 24px;
+}
+
+.stage-indicator {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 24px;
+}
+
+.stage {
+    flex: 1;
+    padding: 10px;
+    border-radius: 6px;
+    background: var(--bg-secondary);
+    text-align: center;
+    font-size: 13px;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    transition: all 0.3s;
+}
+
+.stage.active {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(74, 144, 217, 0.1);
+}
+
+.stage.done {
+    border-color: var(--success);
+    color: var(--success);
+    background: rgba(46, 204, 113, 0.1);
+}
+
+.progress-bar-container {
+    background: var(--bg-secondary);
+    border-radius: 8px;
+    height: 8px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--success));
+    border-radius: 8px;
+    transition: width 0.3s ease;
+    width: 0%;
+}
+
+.progress-detail {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+}
+
+.log-area {
+    background: #0a0a1a;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+}
+
+.log-entry {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.log-entry.error { color: var(--error); }
+
+/* ── Graph View ─────────────────────────────────── */
+
+#graph-view svg {
+    width: 100%;
+    height: 100%;
+}
+
+.graph-controls {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    color: var(--text-secondary);
+    font-size: 12px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 10px;
+    border-radius: 6px;
+    z-index: 10;
+}
+
+.graph-controls input {
+    width: 200px;
+    padding: 4px 8px;
+    background: #333;
+    border: 1px solid #555;
+    color: #eee;
+    border-radius: 3px;
+    margin-top: 6px;
+}
+
+.graph-controls .hint {
+    margin-top: 6px;
+    color: var(--text-muted);
+}
+
+#search-results {
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-size: 11px;
+}
+
+.graph-legend {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    background: rgba(0, 0, 0, 0.6);
+    padding: 10px;
+    border-radius: 6px;
+    z-index: 10;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    margin: 3px 0;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    display: inline-block;
+}
+
+.graph-back {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 10;
+}
+
+.graph-back .btn {
+    background: rgba(0, 0, 0, 0.6);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    padding: 6px 14px;
+}
+
+.graph-back .btn:hover {
+    background: rgba(0, 0, 0, 0.8);
+    color: var(--text-primary);
+}
+
+#tooltip {
+    position: absolute;
+    background: rgba(0, 0, 0, 0.85);
+    color: #eee;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    pointer-events: none;
+    display: none;
+    max-width: 350px;
+    border: 1px solid #444;
+    z-index: 20;
+}
+
+#tooltip .title { font-weight: bold; font-size: 15px; margin-bottom: 4px; }
+#tooltip .type { color: #aaa; font-size: 11px; }
+#tooltip .desc { margin-top: 6px; color: #ccc; }
+#tooltip .stats { margin-top: 6px; color: #888; font-size: 11px; }
+
+/* ── Link styles for graph ──────────────────────── */
+
+.link { stroke-opacity: 0.7; }
+.node circle { stroke: #fff; stroke-width: 1.5px; cursor: pointer; }
+.node text { fill: #ccc; font-size: 10px; pointer-events: none; }
+.node:hover text { fill: #fff; font-size: 12px; font-weight: bold; }

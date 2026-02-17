@@ -4,10 +4,12 @@ Claude Code skills and Python scripts for mathematical literature review and kno
 
 ## What's included
 
-| File | Purpose |
-|------|---------|
+| Component | Purpose |
+|-----------|---------|
+| `kg/` | Library package: PDF/text ingestion, GPT-4o-mini concept extraction, graph building |
+| `web/` | FastAPI web app: file upload, WebSocket progress, D3.js visualization |
 | `bin/lit_review.py` | Search arXiv, rank papers by embedding similarity, download PDFs |
-| `bin/build_knowledge_graph.py` | Ingest PDFs into ChromaDB, extract concepts via GPT-4o-mini, build interactive D3.js knowledge graph |
+| `bin/build_knowledge_graph.py` | CLI wrapper for the knowledge graph pipeline |
 | `commands/lit-review.md` | Claude Code skill for multi-phase literature review |
 | `commands/knowledge-graph.md` | Claude Code skill for knowledge graph construction |
 
@@ -17,9 +19,36 @@ Claude Code skills and Python scripts for mathematical literature review and kno
 pip install -r requirements.txt
 ```
 
+For development (includes test dependencies):
+
+```bash
+pip install -r requirements-dev.txt
+playwright install chromium  # for E2E tests
+```
+
 You need an OpenAI API key in your environment (`OPENAI_API_KEY`).
 
 ## Usage
+
+### Web app (recommended)
+
+Start the web server and upload files through the browser:
+
+```bash
+uvicorn web.app:app --reload
+```
+
+Then open http://127.0.0.1:8000 in your browser. Upload PDF, TXT, or MD files (up to 80), and watch the knowledge graph build in real time via WebSocket progress updates.
+
+### CLI
+
+Build a knowledge graph from a directory of PDFs:
+
+```bash
+python3 bin/build_knowledge_graph.py --dir /tmp/my-review
+```
+
+If the directory has `papers/*.pdf` but no `chroma_db/`, the script automatically ingests the PDFs first. Use `--resume` to continue an interrupted build, or `--viz-only` to regenerate the HTML visualization.
 
 ### Literature review
 
@@ -43,15 +72,35 @@ List existing reviews in a directory:
 python3 bin/lit_review.py list --dir /tmp
 ```
 
-### Knowledge graph
+## Architecture
 
-Build an interactive knowledge graph from a directory of PDFs:
+```
+kg/             # Library package
+  config.py     # Constants, prompts, normalization tables
+  ingest.py     # PDF/text extraction, chunking, embedding
+  extract.py    # GPT-4o-mini concept extraction
+  graph.py      # Merge, deduplicate, build graph + viz data
+  visualize.py  # Standalone HTML generation (CLI)
 
-```bash
-python3 bin/build_knowledge_graph.py --dir /tmp/my-review
+web/            # FastAPI web app
+  app.py        # Endpoints: upload, sessions, graph, WebSocket
+  static/       # Frontend: index.html, app.js, style.css
+
+tests/          # Test suite (pytest)
+  test_ingest.py, test_extract.py, test_graph.py  # Unit tests
+  test_api.py                                      # API tests
+  test_e2e.py                                      # Playwright E2E tests
 ```
 
-If the directory has `papers/*.pdf` but no `chroma_db/`, the script automatically ingests the PDFs first. Use `--resume` to continue an interrupted build, or `--viz-only` to regenerate the HTML visualization.
+## Testing
+
+```bash
+# Unit + API tests
+pytest tests/ -v
+
+# E2E tests (requires Playwright)
+pytest tests/test_e2e.py -v
+```
 
 ## Claude Code integration
 
