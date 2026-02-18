@@ -60,7 +60,7 @@ gcloud iam service-accounts create "${SA_NAME}" \
 SA_EMAIL="${SA_NAME}@${PROJECT_ID}.iam.gserviceaccount.com"
 
 echo "==> Granting roles to service account"
-for ROLE in roles/run.admin roles/artifactregistry.writer roles/iam.serviceAccountUser; do
+for ROLE in roles/run.developer roles/artifactregistry.writer roles/iam.serviceAccountUser; do
   gcloud projects add-iam-policy-binding "${PROJECT_ID}" \
     --member="serviceAccount:${SA_EMAIL}" \
     --role="${ROLE}" \
