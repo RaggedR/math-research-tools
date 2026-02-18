@@ -62,7 +62,7 @@ function removeFile(index) {
 function renderFileList() {
     fileList.innerHTML = selectedFiles.map((f, i) => `
         <div class="file-item">
-            <span class="file-name">${f.name}</span>
+            <span class="file-name">${escapeHtml(f.name)}</span>
             <span class="file-size">${formatSize(f.size)}</span>
             <span class="file-remove" onclick="removeFile(${i})">&times;</span>
         </div>
@@ -245,6 +245,12 @@ async function loadGraph(url) {
     }
 }
 
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+              .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const TYPE_COLORS = {
     object: '#4A90D9',
     theorem: '#E74C3C',
@@ -316,13 +322,13 @@ function renderGraph(data) {
         .attr('x', d => nodeRadius(d) + 3)
         .attr('y', 3);
 
-    // Tooltip
+    // Tooltip (values escaped to prevent XSS from GPT extraction data)
     const tooltip = d3.select('#tooltip');
     graphNode.on('mouseover', (e, d) => {
         tooltip.style('display', 'block')
-            .html(`<div class="title">${d.label}</div><div class="type">${d.type}</div>
-                   ${d.description ? `<div class="desc">${d.description}</div>` : ''}
-                   <div class="stats">${d.papers} papers · ${d.degree} connections</div>`);
+            .html(`<div class="title">${escapeHtml(d.label)}</div><div class="type">${escapeHtml(d.type)}</div>
+                   ${d.description ? `<div class="desc">${escapeHtml(d.description)}</div>` : ''}
+                   <div class="stats">${parseInt(d.papers)} papers · ${parseInt(d.degree)} connections</div>`);
     }).on('mousemove', (e) => {
         tooltip.style('left', (e.pageX + 15) + 'px').style('top', (e.pageY - 10) + 'px');
     }).on('mouseout', () => tooltip.style('display', 'none'));

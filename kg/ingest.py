@@ -198,7 +198,7 @@ def ingest_files(file_paths, chroma_dir, openai_client, metadata_map=None,
         title = meta.get("title", file_path.stem)
 
         for i, chunk in enumerate(chunks):
-            chunk_id = hashlib.md5(f"{file_id}:{i}".encode()).hexdigest()
+            chunk_id = hashlib.sha256(f"{file_id}:{i}".encode()).hexdigest()
             all_chunks.append(chunk["text"])
             all_ids.append(chunk_id)
             all_metadatas.append({

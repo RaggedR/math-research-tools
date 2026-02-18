@@ -9,6 +9,7 @@ Requires: pip install playwright && playwright install chromium
 
 import asyncio
 import multiprocessing
+import socket
 import time
 from pathlib import Path
 
@@ -29,6 +30,13 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _find_free_port():
+    """Find a random available port."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 def run_server(port):
     """Run uvicorn in a subprocess."""
     import uvicorn
@@ -37,8 +45,8 @@ def run_server(port):
 
 @pytest.fixture(scope="module")
 def server():
-    """Start the FastAPI server for E2E tests."""
-    port = 18765
+    """Start the FastAPI server for E2E tests on a random free port."""
+    port = _find_free_port()
     proc = multiprocessing.Process(target=run_server, args=(port,), daemon=True)
     proc.start()
     # Wait for server to start

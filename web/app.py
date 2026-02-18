@@ -6,17 +6,14 @@ Provides file upload, WebSocket progress, and graph visualization endpoints.
 import asyncio
 import json
 import logging
-import shutil
-import sys
+import time
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-
-# Add project root to path for kg imports
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from kg.config import SUPPORTED_EXTENSIONS
 from kg.extract import extract_concepts, select_representative_chunks
@@ -35,11 +32,67 @@ ws_connections: dict[str, list[WebSocket]] = {}
 SESSIONS_DIR = Path(__file__).resolve().parent.parent / "tmp" / "sessions"
 
 MAX_FILES = 80
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB per file
+MAX_TOTAL_SIZE = 500 * 1024 * 1024  # 500 MB total per upload
+SESSION_MAX_AGE_HOURS = 24
+MAX_SESSIONS = 100
+
+
+def cleanup_old_sessions():
+    """Remove sessions older than SESSION_MAX_AGE_HOURS and enforce MAX_SESSIONS."""
+    import shutil
+
+    now = time.time()
+    max_age_secs = SESSION_MAX_AGE_HOURS * 3600
+
+    # Clean up in-memory sessions
+    expired = [
+        sid for sid, s in sessions.items()
+        if now - s.get("created_at", now) > max_age_secs
+    ]
+    for sid in expired:
+        sessions.pop(sid, None)
+        ws_connections.pop(sid, None)
+
+    # Enforce max session count (evict oldest first)
+    if len(sessions) > MAX_SESSIONS:
+        by_age = sorted(sessions.items(), key=lambda x: x[1].get("created_at", 0))
+        for sid, _ in by_age[: len(sessions) - MAX_SESSIONS]:
+            sessions.pop(sid, None)
+            ws_connections.pop(sid, None)
+
+    # Clean up on-disk session directories
+    if SESSIONS_DIR.exists():
+        for session_dir in SESSIONS_DIR.iterdir():
+            if not session_dir.is_dir():
+                continue
+            # Remove if older than max age or if no matching in-memory session
+            age = now - session_dir.stat().st_mtime
+            if age > max_age_secs or session_dir.name not in sessions:
+                try:
+                    shutil.rmtree(session_dir)
+                except OSError as e:
+                    logger.warning("Failed to clean up %s: %s", session_dir, e)
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    app = FastAPI(title="Knowledge Graph Builder")
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Start periodic session cleanup on server startup."""
+        async def _cleanup_loop():
+            while True:
+                await asyncio.sleep(3600)  # Run every hour
+                try:
+                    cleanup_old_sessions()
+                except Exception as e:
+                    logger.warning("Cleanup error: %s", e)
+        task = asyncio.create_task(_cleanup_loop())
+        yield
+        task.cancel()
+
+    app = FastAPI(title="Knowledge Graph Builder", lifespan=lifespan)
 
     static_dir = Path(__file__).resolve().parent / "static"
 
@@ -78,11 +131,30 @@ def create_app() -> FastAPI:
         files_dir = session_dir / "files"
         files_dir.mkdir(parents=True, exist_ok=True)
 
-        # Save files
+        # Save files with size limits and path traversal protection
         saved_paths = []
+        total_size = 0
         for f in valid_files:
-            file_path = files_dir / f.filename
+            # Sanitize filename: strip directory components to prevent path traversal
+            safe_name = Path(f.filename or "unknown").name
+            if not safe_name or safe_name.startswith("."):
+                continue
+
+            # Read with size limit
             content = await f.read()
+            if len(content) > MAX_FILE_SIZE:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"File '{safe_name}' exceeds {MAX_FILE_SIZE // (1024*1024)}MB limit"
+                )
+            total_size += len(content)
+            if total_size > MAX_TOTAL_SIZE:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Total upload exceeds {MAX_TOTAL_SIZE // (1024*1024)}MB limit"
+                )
+
+            file_path = files_dir / safe_name
             file_path.write_bytes(content)
             saved_paths.append(file_path)
 
@@ -95,6 +167,7 @@ def create_app() -> FastAPI:
             "session_dir": str(session_dir),
             "graph": None,
             "error": None,
+            "created_at": time.time(),
         }
 
         # Start background processing
@@ -184,7 +257,7 @@ def process_session_background(session_id: str, file_paths: list[Path],
 
     In production, this spawns a background task. For testing, it can be mocked.
     """
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     loop.create_task(_process_session(session_id, file_paths, session_dir))
 
 

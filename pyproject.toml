@@ -1,2 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "math-research-tools-kg"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.0",
+    "PyMuPDF>=1.23",
+    "chromadb>=0.4",
+    "fastapi>=0.104",
+    "uvicorn[standard]>=0.24",
+    "python-multipart>=0.0.6",
+]
+
+[tool.setuptools.packages.find]
+include = ["kg*", "web*"]
+
+[tool.setuptools.package-data]
+web = ["static/**/*"]
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

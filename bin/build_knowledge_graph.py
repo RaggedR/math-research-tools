@@ -22,9 +22,6 @@ from pathlib import Path
 
 from openai import OpenAI
 
-# Add parent directory to path so kg package is importable
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-
 from kg.config import COLLECTION_NAMES, INGEST_COLLECTION
 from kg.extract import extract_concepts, select_representative_chunks
 from kg.graph import build_graph, merge_extractions

@@ -16,12 +16,13 @@ Claude Code skills and Python scripts for mathematical literature review and kno
 ## Setup
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
 ```
 
 For development (includes test dependencies):
 
 ```bash
+pip install -e .
 pip install -r requirements-dev.txt
 playwright install chromium  # for E2E tests
 ```

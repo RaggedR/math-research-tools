@@ -7,12 +7,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libmupdf-dev \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy source and install as package (eliminates sys.path hacks)
+COPY pyproject.toml .
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
 COPY kg/ kg/
 COPY web/ web/
 COPY bin/ bin/
+
+RUN pip install --no-cache-dir .
 
 # Cloud Run sets PORT env var
 ENV PORT=8080
