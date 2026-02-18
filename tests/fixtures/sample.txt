@@ -1,0 +1,17 @@
+The Rogers-Ramanujan identities are a pair of identities in the theory of partitions.
+They were first discovered by Leonard James Rogers in 1894 and independently rediscovered
+by Srinivasa Ramanujan in 1913.
+
+The first identity states that the number of partitions of n into parts differing by at
+least 2 equals the number of partitions of n into parts congruent to 1 or 4 modulo 5.
+
+The Bailey lemma provides a systematic method for proving Rogers-Ramanujan type identities.
+It generalizes the technique used in the original proof and has led to many new identities.
+
+The Andrews-Gordon identities are a family of partition identities that generalize the
+Rogers-Ramanujan identities. They were conjectured by Gordon and proved by Andrews using
+the Bailey chain technique.
+
+Schur functions are symmetric functions that play a central role in the representation
+theory of the symmetric group. They are related to Hall-Littlewood polynomials and
+Macdonald polynomials through specialization maps.
