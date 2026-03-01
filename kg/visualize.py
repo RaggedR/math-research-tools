@@ -6,18 +6,21 @@ from .config import TYPE_COLORS
 from .graph import prepare_viz_data
 
 
-def generate_html(graph, title="Knowledge Graph", min_degree=None):
+def generate_html(graph, title="Knowledge Graph", min_degree=None, type_colors=None):
     """Generate a standalone interactive HTML visualization.
 
     Args:
         graph: graph dict from build_graph()
         title: page title
         min_degree: minimum degree for node inclusion (None = use default)
+        type_colors: optional dict mapping concept types to hex colors
 
     Returns:
         (html_string, node_count, link_count)
     """
     kwargs = {}
+    if type_colors is not None:
+        kwargs["type_colors"] = type_colors
     if min_degree is not None:
         kwargs["min_degree"] = min_degree
     viz = prepare_viz_data(graph, **kwargs)
@@ -25,9 +28,10 @@ def generate_html(graph, title="Knowledge Graph", min_degree=None):
     links = viz["links"]
     data = json.dumps({"nodes": nodes, "links": links})
 
+    colors = type_colors or TYPE_COLORS
     legend_html = "".join(
         f'<div class="legend-item"><span class="legend-dot" style="background:{color}"></span>{typ}</div>'
-        for typ, color in TYPE_COLORS.items()
+        for typ, color in colors.items()
     )
 
     html = f"""<!DOCTYPE html>
