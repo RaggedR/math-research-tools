@@ -9,9 +9,10 @@ Given a directory with papers/*.pdf (e.g. from /lit-review), this script:
 4. Generates an interactive D3.js HTML visualization
 
 Usage:
-    python3 build_knowledge_graph.py --dir <path>           # Full pipeline
-    python3 build_knowledge_graph.py --dir <path> --resume  # Resume interrupted build
-    python3 build_knowledge_graph.py --dir <path> --viz-only # Regenerate HTML only
+    python3 build_knowledge_graph.py --dir <path>                          # Full pipeline
+    python3 build_knowledge_graph.py --dir <path> --resume                 # Resume interrupted
+    python3 build_knowledge_graph.py --dir <path> --viz-only               # Regenerate HTML
+    python3 build_knowledge_graph.py --dir <path> --config configs/evo.yaml # Custom domain
 """
 
 import json
@@ -22,16 +23,16 @@ from pathlib import Path
 
 from openai import OpenAI
 
-from kg.config import COLLECTION_NAMES, INGEST_COLLECTION
+from kg.config import load_config
 from kg.extract import extract_concepts, select_representative_chunks
 from kg.graph import build_graph, merge_extractions
-from kg.ingest import extract_text_from_pdf, chunk_text, get_embeddings, ingest_files
+from kg.ingest import ingest_files
 from kg.visualize import generate_html
 
 
 # ── Read chunks from ChromaDB ─────────────────────────────────────────
 
-def load_chunks_from_rag(rag_dir):
+def load_chunks_from_rag(rag_dir, collection_names):
     """Load all chunks from a ChromaDB index, grouped by paper."""
     import chromadb
 
@@ -43,7 +44,7 @@ def load_chunks_from_rag(rag_dir):
     client = chromadb.PersistentClient(path=str(chroma_dir))
 
     collection = None
-    for name in COLLECTION_NAMES:
+    for name in collection_names:
         try:
             collection = client.get_collection(name)
             break
@@ -93,6 +94,7 @@ def main():
     args = sys.argv[1:]
 
     rag_dir = None
+    config_path = None
     resume = False
     viz_only = False
 
@@ -100,6 +102,9 @@ def main():
     while i < len(args):
         if args[i] == '--dir' and i + 1 < len(args):
             rag_dir = Path(args[i + 1])
+            i += 2
+        elif args[i] == '--config' and i + 1 < len(args):
+            config_path = args[i + 1]
             i += 2
         elif args[i] == '--resume':
             resume = True
@@ -115,6 +120,10 @@ def main():
         print(__doc__)
         sys.exit(1)
 
+    # Load domain config (three-tier resolution)
+    cfg = load_config(config_path=config_path, data_dir=rag_dir)
+    print(f"Domain: {cfg.name}")
+
     graph_file = rag_dir / "knowledge_graph.json"
     html_file = rag_dir / "knowledge_graph.html"
     cache_file = rag_dir / "extraction_cache.json"
@@ -127,7 +136,7 @@ def main():
         with open(graph_file) as f:
             graph = json.load(f)
         title = f"Knowledge Graph ({graph['metadata']['total_concepts']}c, {graph['metadata']['total_edges']}e)"
-        html, n_nodes, n_links = generate_html(graph, title)
+        html, n_nodes, n_links = generate_html(graph, title, type_colors=cfg.type_colors)
         with open(html_file, 'w') as f:
             f.write(html)
         print(f"Visualization: {n_nodes} nodes, {n_links} edges -> {html_file}")
@@ -157,7 +166,7 @@ def main():
 
     # Load chunks from RAG
     print(f"Reading RAG at {rag_dir}...")
-    papers = load_chunks_from_rag(rag_dir)
+    papers = load_chunks_from_rag(rag_dir, cfg.collection_names)
 
     # Load cache if resuming
     cache = {}
@@ -177,7 +186,8 @@ def main():
         if len(text) > 6000:
             text = text[:6000] + "\n[...truncated...]"
 
-        extraction = extract_concepts(text, paper_name, client)
+        extraction = extract_concepts(text, paper_name, client,
+                                      extraction_prompt=cfg.extraction_prompt)
         n_c = len(extraction.get("concepts", []))
         n_r = len(extraction.get("relationships", []))
         print(f"  {paper_name[:55]:55s} -> {n_c}c, {n_r}r")
@@ -191,7 +201,7 @@ def main():
 
     # Merge
     print(f"\nMerging {len(cache)} paper extractions...")
-    concepts, edges = merge_extractions(cache)
+    concepts, edges = merge_extractions(cache, normalize_table=cfg.normalize)
     print(f"  {len(concepts)} unique concepts, {len(edges)} relationships")
 
     # Build and save graph
@@ -201,7 +211,7 @@ def main():
 
     # Generate HTML
     title = f"Knowledge Graph ({graph['metadata']['total_concepts']}c, {graph['metadata']['total_edges']}e)"
-    html, n_nodes, n_links = generate_html(graph, title)
+    html, n_nodes, n_links = generate_html(graph, title, type_colors=cfg.type_colors)
     with open(html_file, 'w') as f:
         f.write(html)
 

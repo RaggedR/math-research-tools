@@ -7,11 +7,12 @@ from .config import MIN_DEGREE_FOR_VIZ, TYPE_COLORS
 from .extract import normalize_name
 
 
-def merge_extractions(all_extractions):
+def merge_extractions(all_extractions, normalize_table=None):
     """Merge per-paper extractions into a unified set of concepts and edges.
 
     Args:
         all_extractions: dict mapping paper_name -> extraction dict
+        normalize_table: Optional dict of synonym mappings for normalize_name.
 
     Returns:
         (concepts, edges) where concepts is a dict keyed by normalized name,
@@ -25,7 +26,7 @@ def merge_extractions(all_extractions):
             name = c.get("name", "").strip()
             if not name:
                 continue
-            norm = normalize_name(name)
+            norm = normalize_name(name, normalize_table)
 
             if norm not in concepts:
                 concepts[norm] = {
@@ -43,8 +44,8 @@ def merge_extractions(all_extractions):
                     concepts[norm]["description"] = desc
 
         for r in extraction.get("relationships", []):
-            src = normalize_name(r.get("source", ""))
-            tgt = normalize_name(r.get("target", ""))
+            src = normalize_name(r.get("source", ""), normalize_table)
+            tgt = normalize_name(r.get("target", ""), normalize_table)
             if src in concepts and tgt in concepts and src != tgt:
                 edges.append({
                     "source": src,
@@ -93,7 +94,7 @@ def build_graph(concepts, edges):
     }
 
 
-def prepare_viz_data(graph, min_degree=MIN_DEGREE_FOR_VIZ):
+def prepare_viz_data(graph, min_degree=MIN_DEGREE_FOR_VIZ, type_colors=None):
     """Prepare graph data for D3.js visualization.
 
     Filters nodes by min_degree, falling back to lower thresholds if
@@ -112,6 +113,8 @@ def prepare_viz_data(graph, min_degree=MIN_DEGREE_FOR_VIZ):
     if len(keep) < 5:
         keep = {c["name"] for c in graph["concepts"]}
 
+    colors = type_colors or TYPE_COLORS
+
     nodes = []
     for c in graph["concepts"]:
         if c["name"] not in keep:
@@ -123,7 +126,7 @@ def prepare_viz_data(graph, min_degree=MIN_DEGREE_FOR_VIZ):
             "papers": len(c["papers"]),
             "degree": degree.get(c["name"], 0),
             "description": c.get("description", ""),
-            "color": TYPE_COLORS.get(c.get("type", ""), "#95A5A6"),
+            "color": colors.get(c.get("type", ""), "#95A5A6"),
         })
 
     links = []

@@ -1,0 +1,194 @@
+# Domain configuration: Evolutionary Computation
+name: evolutionary-computation
+
+# ── Extraction ────────────────────────────────────────────────────────
+extraction_prompt: |
+  You are an evolutionary computation knowledge extractor. Given text from a research paper, extract:
+
+  1. **Concepts**: Algorithms, techniques, representations, benchmarks, biological principles, and theoretical constructs mentioned.
+  2. **Relationships**: How concepts relate to each other.
+
+  Return JSON with this exact schema:
+  {
+    "concepts": [
+      {
+        "name": "short canonical name (e.g., 'MAP-Elites', 'NEAT', 'coevolutionary arms race')",
+        "type": "one of: algorithm, technique, representation, benchmark, principle, metric, framework, person, definition",
+        "description": "one sentence description if clear from context"
+      }
+    ],
+    "relationships": [
+      {
+        "source": "concept name (must match a concept above)",
+        "target": "concept name (must match a concept above)",
+        "relation": "one of: extends, generalizes, uses, outperforms, is_variant_of, inspired_by, related_to, equivalent_to, combined_with, evaluated_on",
+        "detail": "brief explanation"
+      }
+    ]
+  }
+
+  Rules:
+  - Use canonical names (e.g., "MAP-Elites" not "MAP Elites" or "map-elites algorithm")
+  - Prefer established names from the evolutionary computation literature
+  - Extract 3-15 concepts per passage (focus on the most important ones)
+  - Only include relationships that are explicitly stated or clearly implied
+  - If the text is mostly equations with little conceptual content, return fewer items
+  - For people, only include them if they are credited with a specific algorithm or result in this passage
+
+concept_types:
+  - algorithm
+  - technique
+  - representation
+  - benchmark
+  - principle
+  - metric
+  - framework
+  - person
+  - definition
+
+relationship_types:
+  - extends
+  - generalizes
+  - uses
+  - outperforms
+  - is_variant_of
+  - inspired_by
+  - related_to
+  - equivalent_to
+  - combined_with
+  - evaluated_on
+
+type_colors:
+  algorithm: "#4A90D9"
+  technique: "#2ECC71"
+  representation: "#E74C3C"
+  benchmark: "#F39C12"
+  principle: "#9B59B6"
+  metric: "#1ABC9C"
+  framework: "#E67E22"
+  person: "#3498DB"
+  definition: "#95A5A6"
+
+normalize:
+  "map elites": "MAP-Elites"
+  "map-elite": "MAP-Elites"
+  "mapelites": "MAP-Elites"
+  "neat algorithm": "NEAT"
+  "neuroevolution of augmenting topologies": "NEAT"
+  "cma-es algorithm": "CMA-ES"
+  "covariance matrix adaptation": "CMA-ES"
+  "covariance matrix adaptation evolution strategy": "CMA-ES"
+  "novelty search algorithm": "novelty search"
+  "ns": "novelty search"
+  "quality-diversity algorithm": "quality-diversity"
+  "quality diversity": "quality-diversity"
+  "qd": "quality-diversity"
+  "qd algorithms": "quality-diversity"
+  "genetic algorithm": "genetic algorithms"
+  "ga": "genetic algorithms"
+  "genetic programming": "genetic programming"
+  "gp": "genetic programming"
+  "evolutionary strategy": "evolution strategies"
+  "evolution strategy": "evolution strategies"
+  "es": "evolution strategies"
+  "multi-objective evolutionary algorithm": "multi-objective optimization"
+  "moea": "multi-objective optimization"
+  "nsga-2": "NSGA-II"
+  "nsga2": "NSGA-II"
+  "nsga-ii algorithm": "NSGA-II"
+  "fitness landscape": "fitness landscapes"
+  "fitness function": "fitness function"
+  "crossover operator": "crossover"
+  "mutation operator": "mutation"
+  "selection operator": "selection"
+  "tournament selection": "tournament selection"
+  "red queen effect": "Red Queen hypothesis"
+  "red queen hypothesis": "Red Queen hypothesis"
+  "red queen": "Red Queen hypothesis"
+  "coevolutionary arms race": "coevolutionary arms races"
+  "arms race": "coevolutionary arms races"
+  "open ended evolution": "open-ended evolution"
+  "oee": "open-ended evolution"
+  "artificial life": "artificial life"
+  "alife": "artificial life"
+  "poet algorithm": "POET"
+  "enhanced poet": "Enhanced POET"
+  "virtual creatures": "virtual creatures"
+  "evolving virtual creatures": "virtual creatures"
+  "morphology evolution": "morphological evolution"
+  "body-brain co-optimization": "morphology-control co-optimization"
+  "body brain coevolution": "morphology-control co-optimization"
+  "body-brain coevolution": "morphology-control co-optimization"
+  "co-optimization": "morphology-control co-optimization"
+  "illumination algorithm": "illumination algorithms"
+  "behavioral repertoire": "behavioral repertoires"
+  "behavior characterization": "behavior characterization"
+  "behavioural descriptor": "behavior descriptor"
+  "behavior descriptor": "behavior descriptor"
+  "behaviour descriptor": "behavior descriptor"
+  "deceptive fitness landscape": "deceptive fitness landscapes"
+  "intransitivity": "intransitive dynamics"
+  "intransitive": "intransitive dynamics"
+  "neural network": "neural networks"
+  "ann": "neural networks"
+  "deep neural network": "neural networks"
+  "reinforcement learning": "reinforcement learning"
+  "rl": "reinforcement learning"
+  "curriculum learning": "curriculum learning"
+  "speciation": "speciation"
+  "niching": "niching"
+  "diversity maintenance": "diversity maintenance"
+  "fitness sharing": "fitness sharing"
+
+# ── Collection names ──────────────────────────────────────────────────
+collection_names:
+  - lit_review
+
+ingest_collection: lit_review
+
+# ── Summary generation ────────────────────────────────────────────────
+summary_system_prompt: |
+  You are an evolutionary computation encyclopedia writer. You write clear, precise
+  reference summaries of research concepts for researchers and engineers. You focus on making
+  concepts accessible through definitions, methods, evaluations, and practical applications.
+  You cover evolutionary algorithms, neuroevolution, coevolutionary dynamics, quality diversity,
+  morphology-control co-optimization, open-ended evolution, and artificial life.
+
+summary_sections:
+  - "## Definition\nPrecise definition(s) of this concept. Include formal notation where appropriate."
+  - "## Methods and Approaches\nKey algorithms, architectures, or techniques. Describe how they work at a high level."
+  - "## Evaluation\nHow this concept is typically evaluated — benchmarks, datasets, metrics, baselines."
+  - "## Applications\nReal-world uses and practical implications."
+  - "## Key Results\nState important findings with attribution (author, year). Include quantitative results where available."
+  - "## Connections\nHow this concept relates to other concepts in the research landscape."
+  - "## References\nList the source papers cited in the passages."
+
+# ── Level 2 theme identification ──────────────────────────────────────
+theme_domain_description: |
+  evolutionary computation, focusing on neuroevolution, coevolutionary dynamics,
+  quality diversity, morphology-control co-optimization, open-ended evolution,
+  artificial life, genetic algorithms, evolution strategies, and fitness landscapes
+
+meta_summary_system_prompt: |
+  You are an evolutionary computation research surveyor writing comprehensive area overviews.
+
+l2_graph_domain_description: |
+  evolutionary computation and artificial life research
+
+# ── Survey generation ─────────────────────────────────────────────────
+survey_section_system: |
+  You are an expert academic survey writer producing LaTeX content for a
+  survey paper on evolutionary computation and artificial life. Write in formal academic
+  style with proper LaTeX formatting. Use \label{} for sections/subsections and
+  \ref{} for cross-references. Use \cite{} for citations (cite keys are
+  arxiv_NNNN_NNNNN format, e.g., arxiv_2002_00388). Do NOT include
+  \begin{document} or preamble — just the section content.
+
+survey_abstract_domain: |
+  This survey provides a comprehensive review of recent advances in
+  evolutionary computation, covering neuroevolution, quality diversity,
+  coevolutionary dynamics, morphology-control co-optimization, and open-ended evolution.
+
+# ── Structural holes ─────────────────────────────────────────────────
+cluster_description_domain: "evolutionary computation research"
+search_query_domain: "evolutionary computation research"

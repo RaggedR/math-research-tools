@@ -1,0 +1,160 @@
+# Domain configuration: Knowledge Graphs and Information Retrieval
+name: knowledge-graphs
+
+# ── Extraction ────────────────────────────────────────────────────────
+extraction_prompt: |
+  You are a computer science knowledge extractor. Given text from a research paper, extract:
+
+  1. **Concepts**: Methods, models, architectures, datasets, benchmarks, and theoretical frameworks mentioned.
+  2. **Relationships**: How concepts relate to each other.
+
+  Return JSON with this exact schema:
+  {
+    "concepts": [
+      {
+        "name": "short canonical name (e.g., 'TransE', 'knowledge graph embedding')",
+        "type": "one of: method, model, architecture, dataset, benchmark, technique, framework, person, definition",
+        "description": "one sentence description if clear from context"
+      }
+    ],
+    "relationships": [
+      {
+        "source": "concept name (must match a concept above)",
+        "target": "concept name (must match a concept above)",
+        "relation": "one of: extends, outperforms, uses, is_variant_of, evaluated_on, related_to, equivalent_to, generalizes, applied_to, combined_with",
+        "detail": "brief explanation"
+      }
+    ]
+  }
+
+  Rules:
+  - Use canonical names (e.g., "TransE" not "the TransE model" or "translation-based embedding")
+  - Prefer established names from the knowledge graph and NLP literature
+  - Extract 3-15 concepts per passage (focus on the most important ones)
+  - Only include relationships that are explicitly stated or clearly implied
+  - If the text is mostly equations with little conceptual content, return fewer items
+  - For people, only include them if they are credited with a specific method or result in this passage
+
+concept_types:
+  - method
+  - model
+  - architecture
+  - dataset
+  - benchmark
+  - technique
+  - framework
+  - person
+  - definition
+
+relationship_types:
+  - extends
+  - outperforms
+  - uses
+  - is_variant_of
+  - evaluated_on
+  - related_to
+  - equivalent_to
+  - generalizes
+  - applied_to
+  - combined_with
+
+type_colors:
+  method: "#4A90D9"
+  model: "#E74C3C"
+  architecture: "#2ECC71"
+  dataset: "#F39C12"
+  benchmark: "#9B59B6"
+  technique: "#1ABC9C"
+  framework: "#E67E22"
+  person: "#3498DB"
+  definition: "#95A5A6"
+
+normalize:
+  "knowledge graph": "knowledge graphs"
+  "kg": "knowledge graphs"
+  "kgs": "knowledge graphs"
+  "graph neural network": "graph neural networks"
+  "gnn": "graph neural networks"
+  "gnns": "graph neural networks"
+  "graph convolutional network": "graph convolutional networks"
+  "gcn": "graph convolutional networks"
+  "knowledge graph embedding": "knowledge graph embeddings"
+  "kge": "knowledge graph embeddings"
+  "link prediction": "link prediction"
+  "retrieval augmented generation": "retrieval-augmented generation"
+  "rag": "retrieval-augmented generation"
+  "transe model": "TransE"
+  "transe": "TransE"
+  "transr model": "TransR"
+  "transr": "TransR"
+  "distmult model": "DistMult"
+  "distmult": "DistMult"
+  "complex model": "ComplEx"
+  "complex": "ComplEx"
+  "rotate model": "RotatE"
+  "rotate": "RotatE"
+  "conve model": "ConvE"
+  "conve": "ConvE"
+  "bert model": "BERT"
+  "bert": "BERT"
+  "transformer model": "transformers"
+  "transformer": "transformers"
+  "attention mechanism": "attention"
+  "self-attention": "attention"
+  "vector database": "vector databases"
+  "vector store": "vector databases"
+  "embedding model": "embedding models"
+  "semantic search": "semantic search"
+  "question answering": "question answering"
+  "qa": "question answering"
+
+# ── Collection names ──────────────────────────────────────────────────
+collection_names:
+  - lit_review
+
+ingest_collection: lit_review
+
+# ── Summary generation ────────────────────────────────────────────────
+summary_system_prompt: |
+  You are a computer science encyclopedia writer. You write clear, precise
+  reference summaries of research concepts for researchers and engineers. You focus on making
+  concepts accessible through definitions, methods, evaluations, and practical applications.
+  You cover knowledge graphs, embeddings, information retrieval, natural language processing,
+  and graph neural networks.
+
+summary_sections:
+  - "## Definition\nPrecise definition(s) of this concept. Include formal notation where appropriate."
+  - "## Methods and Approaches\nKey algorithms, architectures, or techniques. Describe how they work at a high level."
+  - "## Evaluation\nHow this concept is typically evaluated — benchmarks, datasets, metrics, baselines."
+  - "## Applications\nReal-world uses and practical implications."
+  - "## Key Results\nState important findings with attribution (author, year). Include quantitative results where available."
+  - "## Connections\nHow this concept relates to other concepts in the research landscape."
+  - "## References\nList the source papers cited in the passages."
+
+# ── Level 2 theme identification ──────────────────────────────────────
+theme_domain_description: |
+  knowledge graphs, semantic embeddings, vector databases, information retrieval,
+  and graph neural networks
+
+meta_summary_system_prompt: |
+  You are a computer science research surveyor writing comprehensive area overviews.
+
+l2_graph_domain_description: |
+  knowledge graphs, embeddings, and information retrieval
+
+# ── Survey generation ─────────────────────────────────────────────────
+survey_section_system: |
+  You are an expert academic survey writer producing LaTeX content for a
+  survey paper on knowledge graphs and AI. Write in formal academic style with proper LaTeX
+  formatting. Use \label{} for sections/subsections and \ref{} for cross-references.
+  Use \cite{} for citations (cite keys are arxiv_NNNN_NNNNN format, e.g., arxiv_2002_00388).
+  Do NOT include \begin{document} or preamble — just the section content.
+
+survey_abstract_domain: |
+  This survey provides a comprehensive review of recent advances in knowledge
+  graph research, covering representation learning, embedding methods, graph
+  neural networks, retrieval-augmented generation, and related techniques.
+
+# ── Structural holes ─────────────────────────────────────────────────
+cluster_description_domain: "computer science research"
+search_query_domain: "knowledge graph and AI research"
