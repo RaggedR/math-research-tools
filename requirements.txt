@@ -4,3 +4,7 @@ chromadb>=0.4
 fastapi>=0.104
 uvicorn[standard]>=0.24
 python-multipart>=0.0.6
+anthropic>=0.18
+networkx>=3.0
+requests>=2.28
+pyyaml>=6.0

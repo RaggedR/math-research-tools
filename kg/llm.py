@@ -55,19 +55,26 @@ class AnthropicAdapter:
         return response.content[0].text
 
 
+def _is_retryable(e):
+    """Check if an exception is a retryable rate-limit or overload error."""
+    err_str = str(e).lower()
+    return any(k in err_str for k in ('rate', '429', 'limit', 'overloaded'))
+
+
 def with_retry(fn, max_retries=3):
-    """Retry with exponential backoff on rate limit errors."""
+    """Retry with exponential backoff on rate limit errors.
+
+    Only retries on rate-limit / overload errors. All other exceptions
+    are propagated immediately.
+    """
     for attempt in range(max_retries):
         try:
             return fn()
         except Exception as e:
-            err_str = str(e).lower()
-            if any(k in err_str for k in ('rate', '429', 'limit', 'overloaded')):
+            if _is_retryable(e) and attempt < max_retries - 1:
                 wait = (2 ** attempt) + random.uniform(0, 1)
                 logger.warning("Rate limited, waiting %.1fs...", wait)
                 time.sleep(wait)
-            elif attempt == max_retries - 1:
-                raise
             else:
-                time.sleep(1)
+                raise
     return fn()  # final attempt

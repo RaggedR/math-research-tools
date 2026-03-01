@@ -1,17 +1,15 @@
-# math-research-tools
+# INSTINCT — Integrated Synthesis & Taxonomy for Intelligent Navigation of Conceptual Terrain
 
-Claude Code skills and Python scripts for mathematical literature review and knowledge graph construction.
+A unified Python toolkit for research literature analysis: ingest papers, extract concepts, build knowledge graphs, generate summaries, detect structural holes, and produce LaTeX survey papers.
 
-## What's included
+## Pipeline
 
-| Component | Purpose |
-|-----------|---------|
-| `kg/` | Library package: PDF/text ingestion, GPT-4o-mini concept extraction, graph building |
-| `web/` | FastAPI web app: file upload, WebSocket progress, D3.js visualization |
-| `bin/lit_review.py` | Search arXiv, rank papers by embedding similarity, download PDFs |
-| `bin/build_knowledge_graph.py` | CLI wrapper for the knowledge graph pipeline |
-| `commands/lit-review.md` | Claude Code skill for multi-phase literature review |
-| `commands/knowledge-graph.md` | Claude Code skill for knowledge graph construction |
+```
+lit_review.py → build_knowledge_graph.py → generate_summaries.py → build_level2.py → detect_structural_holes.py → generate_survey.py
+   (arXiv)        (L0: concepts/edges)       (L1: summaries)       (L2: themes)        (citation gaps)           (LaTeX paper)
+```
+
+Each stage reads from and writes to a single data directory. The `literature_agent.py` provides progressive drill-down search across all levels.
 
 ## Setup
 
@@ -19,98 +17,81 @@ Claude Code skills and Python scripts for mathematical literature review and kno
 pip install -e .
 ```
 
-For development (includes test dependencies):
+You need API keys in your environment:
+- `OPENAI_API_KEY` — required for all stages
+- `ANTHROPIC_API_KEY` — required for survey generation
 
-```bash
-pip install -e .
-pip install -r requirements-dev.txt
-playwright install chromium  # for E2E tests
+## Domain Configuration
+
+INSTINCT is domain-agnostic. Each data directory can have a `domain.yaml` that points to a config:
+
+```yaml
+# ~/data/genetic/domain.yaml
+config: evolutionary-computation
 ```
 
-You need an OpenAI API key in your environment (`OPENAI_API_KEY`).
+Three-tier config resolution:
+1. Explicit `--config path.yaml` flag (highest priority)
+2. `domain.yaml` in the data directory
+3. Fallback to `configs/math.yaml`
 
-## Usage
+Built-in configs: `math`, `evolutionary-computation`, `knowledge-graphs`.
 
-### Web app (recommended)
+## CLI Tools
 
-**Live demo:** https://kg-web-314185672280.australia-southeast1.run.app/
+| Command | Purpose |
+|---------|---------|
+| `bin/lit_review.py` | Search arXiv, rank papers, download PDFs |
+| `bin/build_knowledge_graph.py` | Extract concepts + relationships, build D3.js visualization |
+| `bin/generate_summaries.py` | Generate Level 1 concept summaries via LLM |
+| `bin/build_level2.py` | Identify themes, generate meta-summaries, build L2 graph |
+| `bin/detect_structural_holes.py` | Citation gap detection between thematic clusters |
+| `bin/generate_survey.py` | Generate a complete LaTeX survey paper |
+| `bin/literature_agent.py` | Progressive drill-down search (L2 → L1 → L0) |
 
-Or run locally:
-
-```bash
-cd /path/to/math-research-tools
-uvicorn web.app:app --reload
-```
-
-Then open http://127.0.0.1:8000 in your browser. Upload PDF, TXT, or MD files (up to 80), and watch the knowledge graph build in real time via WebSocket progress updates.
-
-### CLI
-
-Build a knowledge graph from a directory of PDFs:
-
-```bash
-python3 bin/build_knowledge_graph.py --dir /tmp/my-review
-```
-
-If the directory has `papers/*.pdf` but no `chroma_db/`, the script automatically ingests the PDFs first. Use `--resume` to continue an interrupted build, or `--viz-only` to regenerate the HTML visualization.
-
-### Literature review
-
-Search arXiv for papers, rank by relevance, download PDFs:
-
-```bash
-python3 bin/lit_review.py search "cylindric partitions positivity" --dir /tmp/my-review --max-papers 20
-```
-
-Run multiple searches to the same directory — results accumulate (deduplication by arXiv ID, highest similarity score kept).
-
-After collecting papers from multiple queries, clean up to keep only the top N:
-
-```bash
-python3 bin/lit_review.py cleanup --dir /tmp/my-review --keep 50 "cylindric partitions q-series positivity"
-```
-
-List existing reviews in a directory:
-
-```bash
-python3 bin/lit_review.py list --dir /tmp
-```
+All commands accept `--dir <path>` and `--config <path>`.
 
 ## Architecture
 
 ```
-kg/             # Library package
-  config.py     # Constants, prompts, normalization tables
-  ingest.py     # PDF/text extraction, chunking, embedding
-  extract.py    # GPT-4o-mini concept extraction
-  graph.py      # Merge, deduplicate, build graph + viz data
-  visualize.py  # Standalone HTML generation (CLI)
+kg/                     # Core library
+  config.py             # DomainConfig dataclass + YAML loader
+  llm.py                # OpenAI + Anthropic adapters with retry
+  utils.py              # Shared utilities (slugify)
+  ingest.py             # PDF/text ingestion + ChromaDB storage
+  extract.py            # GPT-4o-mini concept extraction
+  graph.py              # Merge, deduplicate, build graph
+  visualize.py          # D3.js HTML visualization
+  summaries.py          # Level 1 concept summaries
+  level2.py             # Level 2 themes + meta-summaries
+  structural_holes.py   # Citation gap detection
+  survey.py             # LaTeX survey generation
+  agent.py              # Literature search agent
 
-web/            # FastAPI web app
-  app.py        # Endpoints: upload, sessions, graph, WebSocket
-  static/       # Frontend: index.html, app.js, style.css
+configs/                # Domain YAML configurations
+  math.yaml
+  evolutionary-computation.yaml
+  knowledge-graphs.yaml
 
-tests/          # Test suite (pytest)
-  test_ingest.py, test_extract.py, test_graph.py  # Unit tests
-  test_api.py                                      # API tests
-  test_e2e.py                                      # Playwright E2E tests
+bin/                    # Thin CLI wrappers
+web/                    # FastAPI web app (upload + visualize)
+tests/                  # Test suite
 ```
 
 ## Testing
 
 ```bash
-# Unit + API tests
 pytest tests/ -v
-
-# E2E tests (requires Playwright)
-pytest tests/test_e2e.py -v
 ```
 
-## Claude Code integration
+## Web App
 
-Copy the `commands/` files into your Claude Code commands directory (`~/.claude/commands/`) to enable the `/lit-review` and `/knowledge-graph` slash commands. Update the `<repo>` placeholder in the skill files to point to where you cloned this repository.
+```bash
+uvicorn web.app:app --reload
+```
 
-### Workflow
+Upload PDFs and build knowledge graphs interactively at http://127.0.0.1:8000.
 
-1. `/lit-review /tmp/my-review topic keywords` — Claude runs a multi-phase search: conversation mining, diversified arXiv queries, abstract snowball, Semantic Scholar citation chasing, and cleanup
-2. `/knowledge-graph /tmp/my-review` — Ingest PDFs, extract concepts, build interactive visualization
+## Claude Code Integration
+
+Copy `commands/` files to `~/.claude/commands/` for `/lit-review` and `/knowledge-graph` slash commands.

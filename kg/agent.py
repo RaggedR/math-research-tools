@@ -28,7 +28,7 @@ DEFAULT_ANSWER_MODEL = "gpt-4o-mini"
 SIMILARITY_THRESHOLD = 0.35
 
 DEFAULT_COLLECTIONS = {
-    0: "math_papers",
+    0: "lit_review",
     1: "level1_summaries",
 }
 
@@ -184,7 +184,8 @@ def search_level(question, level, openai_client, chroma_client,
 
 # ── Synthesis ────────────────────────────────────────────────────────
 
-def synthesize_answer(question, all_passages, openai_client, answer_model=None):
+def synthesize_answer(question, all_passages, openai_client,
+                      answer_model=None, domain_name=None):
     """Synthesize an answer from retrieved passages using an LLM.
 
     Args:
@@ -192,11 +193,14 @@ def synthesize_answer(question, all_passages, openai_client, answer_model=None):
         all_passages: List of passage dicts from search functions.
         openai_client: An OpenAI client instance.
         answer_model: Chat model name (default: gpt-4o-mini).
+        domain_name: Domain name for prompt context (e.g. "mathematical",
+            "evolutionary computation"). If None, uses generic wording.
 
     Returns:
         The synthesized answer as a string.
     """
     answer_model = answer_model or DEFAULT_ANSWER_MODEL
+    domain = domain_name or "research"
 
     formatted = []
     for p in all_passages:
@@ -210,19 +214,19 @@ def synthesize_answer(question, all_passages, openai_client, answer_model=None):
 
     passages_text = "\n\n---\n\n".join(formatted)
 
-    prompt = f"""You are a mathematical research assistant answering questions \
+    prompt = f"""You are a {domain} research assistant answering questions \
 using a hierarchical literature database.
 
 QUESTION: {question}
 
 Below are passages retrieved from three levels of the literature hierarchy:
 - Level 2 (meta-summaries): Bird's-eye overviews of research areas
-- Level 1 (concept summaries): Focused summaries of individual mathematical concepts
+- Level 1 (concept summaries): Focused summaries of individual concepts
 - Level 0 (raw papers): Direct excerpts from research papers
 
 INSTRUCTIONS:
 - Answer the question concisely but precisely (aim for 5-15 sentences).
-- Use LaTeX notation for mathematics ($...$, $$...$$).
+- Use LaTeX notation for mathematics where appropriate ($...$, $$...$$).
 - Cite sources using [Author, Year] or [concept-name] format.
 - If the passages don't contain enough information to answer fully, say so.
 - Prioritize precision over coverage — it's better to give a focused answer \
@@ -238,8 +242,8 @@ RETRIEVED PASSAGES:
             {
                 "role": "system",
                 "content": (
-                    "You are a precise mathematical research assistant. "
-                    "Use LaTeX notation. Cite sources."
+                    f"You are a precise {domain} research assistant. "
+                    "Cite sources."
                 ),
             },
             {"role": "user", "content": prompt},
@@ -403,9 +407,11 @@ def run_agent(question, base_dir, config=None, start_level=2, deep=False,
         }
 
     # Synthesize
+    domain_name = config.name if config else None
     answer = synthesize_answer(
         question, all_passages, openai_client,
         answer_model=answer_model,
+        domain_name=domain_name,
     )
 
     return {

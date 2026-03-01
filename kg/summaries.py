@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .config import load_config, EMBEDDING_MODEL
 from .llm import with_retry
+from .utils import slugify
 
 
 # ── Defaults ──────────────────────────────────────────────────────────
@@ -20,17 +21,6 @@ DEFAULT_MODEL = "gpt-4o-mini"
 TOP_K = 10
 MIN_DEGREE = 2
 DEFAULT_COLLECTION = "lit_review"
-
-
-# ── Utilities ──────────────────────────────────────────────────────────
-
-def slugify(name):
-    """Convert concept name to a filesystem-safe slug."""
-    s = name.lower().strip()
-    s = re.sub(r'[^\w\s-]', '', s)
-    s = re.sub(r'[\s]+', '-', s)
-    s = re.sub(r'-+', '-', s)
-    return s.strip('-')[:80]
 
 
 def compute_degrees(graph):

@@ -21,6 +21,7 @@ from collections import defaultdict, deque
 from pathlib import Path
 
 from .llm import AnthropicAdapter, with_retry
+from .utils import slugify
 
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 MAX_TOKENS_OUTLINE = 4096
@@ -36,9 +37,9 @@ OUTLINE_SYSTEM = (
 )
 
 SECTION_SYSTEM = (
-    "You are an expert academic survey writer producing LaTeX content for a "
-    "survey paper on knowledge graphs and AI. Write in formal academic style "
-    "with proper LaTeX formatting. Use \\label{} for sections/subsections and "
+    "You are an expert academic survey writer producing LaTeX content. "
+    "Write in formal academic style with proper LaTeX formatting. "
+    "Use \\label{} for sections/subsections and "
     "\\ref{} for cross-references. Use \\cite{} for citations (cite keys are "
     "arxiv_NNNN_NNNNN format, e.g., arxiv_2002_00388). Do NOT include "
     "\\begin{document} or preamble — just the section content."
@@ -88,15 +89,6 @@ def get_paths(base_dir):
         "survey_tex": d / "survey.tex",
         "survey_bib": d / "survey.bib",
     }
-
-
-def slugify(name):
-    """Convert a name to a URL/filename-safe slug."""
-    s = name.lower().strip()
-    s = re.sub(r'[^\w\s-]', '', s)
-    s = re.sub(r'[\s]+', '-', s)
-    s = re.sub(r'-+', '-', s)
-    return s.strip('-')[:80]
 
 
 # ── Data loading ─────────────────────────────────────────────────────
@@ -606,25 +598,46 @@ def generate_bib(papers, output_path):
 # ── Abstract and assembly ────────────────────────────────────────────
 
 
-def generate_abstract(outline):
-    """Generate a placeholder abstract from the outline guidance."""
+def generate_abstract(outline, config=None):
+    """Generate a placeholder abstract from the outline guidance.
+
+    If config has a survey_abstract_domain field, uses it for the abstract text.
+    Otherwise falls back to a generic abstract.
+    """
     guidance = outline.get("abstract_guidance", "")
+    domain_text = ""
+    if config is not None and getattr(config, "survey_abstract_domain", ""):
+        domain_text = config.survey_abstract_domain.strip()
+
+    if domain_text:
+        abstract_body = (
+            f"{domain_text} "
+            "We synthesize findings from the literature, identify key research themes "
+            "and their interconnections, and outline open problems and future directions. "
+            "The survey is organized around research themes identified through a "
+            "systematic, multi-level literature analysis."
+        )
+    else:
+        abstract_body = (
+            "This survey provides a comprehensive review of recent advances in the "
+            "surveyed research area. "
+            "We synthesize findings from the literature, identify key research themes "
+            "and their interconnections, and outline open problems and future directions. "
+            "The survey is organized around research themes identified through a "
+            "systematic, multi-level literature analysis."
+        )
+
     return (
         "% Abstract generated from outline guidance\n"
         f"% Guidance: {guidance}\n"
         "\\begin{abstract}\n"
-        "This survey provides a comprehensive review of recent advances in knowledge "
-        "graph research, covering representation learning, embedding methods, graph "
-        "neural networks, retrieval-augmented generation, and related techniques. "
-        "We synthesize findings from the literature, identify key research themes "
-        "and their interconnections, and outline open problems and future directions. "
-        "The survey is organized around research themes identified through a "
-        "systematic, multi-level literature analysis.\n"
+        f"{abstract_body}\n"
         "\\end{abstract}\n"
     )
 
 
-def assemble(outline, section_texts, intro_tex, concl_tex, data, paths):
+def assemble(outline, section_texts, intro_tex, concl_tex, data, paths,
+             config=None):
     """Assemble all generated pieces into a final .tex and .bib file.
 
     Args:
@@ -634,6 +647,7 @@ def assemble(outline, section_texts, intro_tex, concl_tex, data, paths):
         concl_tex: LaTeX string for the conclusion.
         data: Loaded INSTINCT data dict (needs 'papers' for bib).
         paths: Paths dict from get_paths().
+        config: Optional DomainConfig for abstract domain text.
     """
     generate_bib(data["papers"], paths["survey_bib"])
 
@@ -647,7 +661,7 @@ def assemble(outline, section_texts, intro_tex, concl_tex, data, paths):
     parts.append("\\begin{document}")
     parts.append("\\maketitle")
     parts.append("")
-    parts.append(generate_abstract(outline))
+    parts.append(generate_abstract(outline, config=config))
     parts.append("")
     parts.append("\\tableofcontents")
     parts.append("\\newpage")
@@ -758,7 +772,8 @@ def run_survey(base_dir, config=None, force=False, outline_only=False,
 
     # Stage 6: Assemble
     print("Stage 6: Assembling final document...")
-    assemble(outline, section_texts, intro_tex, concl_tex, data, paths)
+    assemble(outline, section_texts, intro_tex, concl_tex, data, paths,
+            config=config)
 
     print("Done.")
     return outline
