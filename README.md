@@ -33,7 +33,9 @@ You need an OpenAI API key in your environment (`OPENAI_API_KEY`).
 
 ### Web app (recommended)
 
-Start the web server and upload files through the browser:
+**Live demo:** https://kg-web-314185672280.australia-southeast1.run.app/
+
+Or run locally:
 
 ```bash
 cd /path/to/math-research-tools
