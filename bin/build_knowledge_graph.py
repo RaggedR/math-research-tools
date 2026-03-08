@@ -144,13 +144,17 @@ def main():
         webbrowser.open(f"file://{html_file}")
         return
 
-    # Auto-detect: if chroma_db/ missing but papers/ has PDFs, ingest first
+    # Auto-detect: if chroma_db/ missing but papers/ has files, ingest first
     chroma_dir = rag_dir / "chroma_db"
     papers_dir = rag_dir / "papers"
-    if not chroma_dir.exists() and papers_dir.exists() and list(papers_dir.glob("*.pdf")):
-        print(f"No ChromaDB found — ingesting PDFs from {papers_dir}...")
+    supported = {".pdf", ".txt", ".md", ".text", ".markdown"}
+    paper_files = sorted(
+        f for f in papers_dir.iterdir()
+        if f.suffix.lower() in supported
+    ) if papers_dir.exists() else []
+    if not chroma_dir.exists() and paper_files:
+        print(f"No ChromaDB found — ingesting {len(paper_files)} files from {papers_dir}...")
         openai_client = OpenAI()
-        pdfs = sorted(papers_dir.glob("*.pdf"))
 
         # Load paper metadata if available
         metadata_map = {}
@@ -158,10 +162,12 @@ def main():
         if selected_path.exists():
             with open(selected_path) as f:
                 for paper in json.load(f):
-                    key = paper.get('base_id', '').replace('/', '_') + '.pdf'
-                    metadata_map[key] = paper
+                    base = paper.get('base_id', '').replace('/', '_')
+                    # Map all supported file extensions to the same metadata
+                    for ext in ('.pdf', '.txt', '.md', '.text', '.markdown'):
+                        metadata_map[base + ext] = paper
 
-        ingest_files(pdfs, chroma_dir, openai_client, metadata_map)
+        ingest_files(paper_files, chroma_dir, openai_client, metadata_map)
         print()
 
     # Load chunks from RAG

@@ -48,13 +48,16 @@ class TestGetPaths:
         paths = get_paths("/tmp/test")
         expected_keys = {
             "themes_file", "l2_graph_file", "meta_dir", "compressed_dir",
-            "graph_file", "papers_file", "cache_dir", "survey_tex", "survey_bib",
+            "graph_file", "papers_file", "cache_dir", "survey_out", "survey_bib",
+            "format",
         }
         assert set(paths.keys()) == expected_keys
 
     def test_paths_are_under_base_dir(self):
         paths = get_paths("/data/corpus")
         for key, path in paths.items():
+            if key == "format":
+                continue  # format is a string, not a path
             assert str(path).startswith("/data/corpus"), f"{key} not under base dir"
 
     def test_accepts_path_object(self):
@@ -407,7 +410,7 @@ class TestGenerateBib:
 
 class TestAssemble:
     def _make_minimal_data(self, tmp_path):
-        paths = get_paths(tmp_path)
+        paths = get_paths(tmp_path, output_format="latex")
         paths["cache_dir"].mkdir(parents=True, exist_ok=True)
 
         data = {
@@ -436,19 +439,19 @@ class TestAssemble:
 
     def test_creates_tex_file(self, tmp_path):
         paths, data, outline, section_texts, intro, conclusion = self._make_minimal_data(tmp_path)
-        assemble(outline, section_texts, intro, conclusion, data, paths)
-        assert paths["survey_tex"].exists()
+        assemble(outline, section_texts, intro, conclusion, data, paths, output_format="latex")
+        assert paths["survey_out"].exists()
 
     def test_creates_bib_file(self, tmp_path):
         paths, data, outline, section_texts, intro, conclusion = self._make_minimal_data(tmp_path)
-        assemble(outline, section_texts, intro, conclusion, data, paths)
+        assemble(outline, section_texts, intro, conclusion, data, paths, output_format="latex")
         assert paths["survey_bib"].exists()
 
     def test_tex_has_document_structure(self, tmp_path):
         paths, data, outline, section_texts, intro, conclusion = self._make_minimal_data(tmp_path)
-        assemble(outline, section_texts, intro, conclusion, data, paths)
+        assemble(outline, section_texts, intro, conclusion, data, paths, output_format="latex")
 
-        tex = paths["survey_tex"].read_text()
+        tex = paths["survey_out"].read_text()
         assert "\\documentclass" in tex
         assert "\\begin{document}" in tex
         assert "\\end{document}" in tex
@@ -457,9 +460,9 @@ class TestAssemble:
 
     def test_tex_contains_all_sections(self, tmp_path):
         paths, data, outline, section_texts, intro, conclusion = self._make_minimal_data(tmp_path)
-        assemble(outline, section_texts, intro, conclusion, data, paths)
+        assemble(outline, section_texts, intro, conclusion, data, paths, output_format="latex")
 
-        tex = paths["survey_tex"].read_text()
+        tex = paths["survey_out"].read_text()
         assert "Content about embeddings" in tex
         assert "Content about applications" in tex
         assert "Intro text" in tex
@@ -467,9 +470,9 @@ class TestAssemble:
 
     def test_tex_section_order(self, tmp_path):
         paths, data, outline, section_texts, intro, conclusion = self._make_minimal_data(tmp_path)
-        assemble(outline, section_texts, intro, conclusion, data, paths)
+        assemble(outline, section_texts, intro, conclusion, data, paths, output_format="latex")
 
-        tex = paths["survey_tex"].read_text()
+        tex = paths["survey_out"].read_text()
         intro_pos = tex.index("Intro text")
         sec1_pos = tex.index("Content about embeddings")
         sec2_pos = tex.index("Content about applications")
@@ -479,20 +482,20 @@ class TestAssemble:
     def test_missing_section_gets_todo(self, tmp_path):
         paths, data, outline, section_texts, intro, conclusion = self._make_minimal_data(tmp_path)
         del section_texts["sec-2"]
-        assemble(outline, section_texts, intro, conclusion, data, paths)
+        assemble(outline, section_texts, intro, conclusion, data, paths, output_format="latex")
 
-        tex = paths["survey_tex"].read_text()
+        tex = paths["survey_out"].read_text()
         assert "TODO: generate section sec-2" in tex
 
 
 class TestGenerateAbstract:
     def test_returns_latex_abstract(self):
         outline = {"abstract_guidance": "Cover KG methods."}
-        abstract = generate_abstract(outline)
+        abstract = generate_abstract(outline, output_format="latex")
         assert "\\begin{abstract}" in abstract
         assert "\\end{abstract}" in abstract
 
     def test_includes_guidance_comment(self):
         outline = {"abstract_guidance": "Focus on embeddings."}
-        abstract = generate_abstract(outline)
+        abstract = generate_abstract(outline, output_format="latex")
         assert "Focus on embeddings" in abstract

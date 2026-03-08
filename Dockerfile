@@ -13,10 +13,13 @@ COPY requirements.txt .
 COPY kg/ kg/
 COPY web/ web/
 COPY bin/ bin/
+COPY configs/ configs/
 
 RUN pip install --no-cache-dir .
 
-# Cloud Run sets PORT env var
+# Research data should be mounted at runtime, e.g.:
+#   docker run -v /path/to/data:/app/data -e INSTINCT_DATA_DIR=/app/data
+ENV INSTINCT_DATA_DIR=/app/data
 ENV PORT=8080
 
 CMD ["sh", "-c", "uvicorn web.app:app --host 0.0.0.0 --port $PORT"]

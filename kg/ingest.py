@@ -194,7 +194,7 @@ def ingest_files(file_paths, chroma_dir, openai_client, metadata_map=None,
 
         chunks = chunk_text(pages)
         meta = metadata_map.get(file_path.name, {})
-        file_id = meta.get("arxiv_id", file_path.stem)
+        file_id = meta.get("arxiv_id", meta.get("pmid", file_path.stem))
         title = meta.get("title", file_path.stem)
 
         for i, chunk in enumerate(chunks):
