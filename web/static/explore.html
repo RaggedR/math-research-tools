@@ -272,8 +272,6 @@
                 subtitle.textContent = `Explore ${allConcepts.length} concepts across your research corpus`;
             }
 
-            // Prepare viz data
-            const vizResp = await fetch('/api/knowledge-graph');
             renderGraphViz(graph);
         } catch (e) {
             console.error('Failed to load graph:', e);

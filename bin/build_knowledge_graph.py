@@ -163,8 +163,8 @@ def main():
             with open(selected_path) as f:
                 for paper in json.load(f):
                     base = paper.get('base_id', '').replace('/', '_')
-                    # Map both .pdf and .txt filenames to the same metadata
-                    for ext in ('.pdf', '.txt'):
+                    # Map all supported file extensions to the same metadata
+                    for ext in ('.pdf', '.txt', '.md', '.text', '.markdown'):
                         metadata_map[base + ext] = paper
 
         ingest_files(paper_files, chroma_dir, openai_client, metadata_map)

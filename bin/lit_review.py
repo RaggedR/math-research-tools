@@ -41,8 +41,7 @@ try:
     import certifi
     _ssl_ctx.load_verify_locations(certifi.where())
 except ImportError:
-    _ssl_ctx.check_hostname = False
-    _ssl_ctx.verify_mode = ssl.CERT_NONE
+    pass  # Fall back to system certificates; fail visibly if SSL fails
 
 
 # ── Slugify ────────────────────────────────────────────────────────────
@@ -444,7 +443,7 @@ def cmd_search(query_terms, output_dir, max_papers=50, abstracts_only=False, sou
                 with urllib.request.urlopen(req, timeout=60, context=_ssl_ctx) as resp:
                     content = resp.read()
                     # Verify we got a PDF (PMC sometimes returns HTML)
-                    if content[:5] == b'%PDF-' or len(content) > 1000:
+                    if content[:5] == b'%PDF-':
                         with open(pdf_path, 'wb') as f:
                             f.write(content)
                         downloaded += 1

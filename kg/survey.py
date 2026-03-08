@@ -738,6 +738,8 @@ def generate_intro_conclusion(adapter, outline, section_texts, paths,
 
 def make_cite_key(paper):
     """Generate a BibTeX cite key from a paper dict."""
+    if paper.get("pmid"):
+        return f"pmid_{paper['pmid']}"
     base_id = paper.get("base_id", paper.get("arxiv_id", "unknown"))
     base_id = re.sub(r'v\d+$', '', base_id)
     return "arxiv_" + base_id.replace('.', '_')

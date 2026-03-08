@@ -6,13 +6,14 @@ Provides file upload, WebSocket progress, and graph visualization endpoints.
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, File, Query, UploadFile, WebSocket, WebSocketDisconnect, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 import chromadb
@@ -23,10 +24,26 @@ from kg.graph import build_graph, merge_extractions, prepare_viz_data
 from kg.ingest import extract_file, chunk_text, get_embeddings, ingest_files
 
 # Default data directory: configurable via INSTINCT_DATA_DIR env var
-import os
 DEFAULT_DATA_DIR = os.environ.get("INSTINCT_DATA_DIR", ".")
 
 logger = logging.getLogger(__name__)
+
+
+def _validate_data_dir(data_dir: str) -> Path:
+    """Validate and resolve data_dir, preventing path traversal."""
+    resolved = Path(data_dir).resolve()
+    # Block obvious traversal attempts (e.g., /etc, /var, system dirs)
+    if str(resolved).startswith(("/etc", "/var", "/proc", "/sys", "/dev")):
+        raise HTTPException(status_code=400, detail="Invalid data directory")
+    return resolved
+
+
+def _get_openai_client():
+    """Return a cached OpenAI client (singleton)."""
+    if not hasattr(_get_openai_client, "_client"):
+        from openai import OpenAI
+        _get_openai_client._client = OpenAI()
+    return _get_openai_client._client
 
 # In-memory session store
 sessions: dict[str, dict] = {}
@@ -263,13 +280,13 @@ def create_app() -> FastAPI:
         n: int = Query(8, description="Number of results to return"),
     ):
         """Search ChromaDB for passages relevant to a question."""
-        chroma_path = Path(data_dir) / "chroma_db"
+        resolved = _validate_data_dir(data_dir)
+        chroma_path = resolved / "chroma_db"
         if not chroma_path.exists():
-            raise HTTPException(status_code=404, detail=f"No ChromaDB found at {chroma_path}")
+            raise HTTPException(status_code=404, detail="No ChromaDB found in data directory")
 
         try:
-            from openai import OpenAI
-            openai_client = OpenAI()
+            openai_client = _get_openai_client()
 
             # Embed the query
             resp = openai_client.embeddings.create(model=EMBEDDING_MODEL, input=[q[:8000]])
@@ -299,8 +316,11 @@ def create_app() -> FastAPI:
 
             return {"query": q, "results": passages}
 
+        except HTTPException:
+            raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.exception("Error in /api/query")
+            raise HTTPException(status_code=500, detail="Search failed")
 
     @app.get("/api/ask")
     async def ask_question(
@@ -308,13 +328,13 @@ def create_app() -> FastAPI:
         data_dir: str = Query(DEFAULT_DATA_DIR, description="Data directory with chroma_db/"),
     ):
         """RAG-powered question answering: retrieve relevant passages, synthesize a narrative."""
-        chroma_path = Path(data_dir) / "chroma_db"
+        resolved = _validate_data_dir(data_dir)
+        chroma_path = resolved / "chroma_db"
         if not chroma_path.exists():
-            raise HTTPException(status_code=404, detail=f"No ChromaDB found at {chroma_path}")
+            raise HTTPException(status_code=404, detail="No ChromaDB found in data directory")
 
         try:
-            from openai import OpenAI
-            openai_client = OpenAI()
+            openai_client = _get_openai_client()
 
             # Step 1: Retrieve relevant passages
             resp = openai_client.embeddings.create(model=EMBEDDING_MODEL, input=[q[:8000]])
@@ -399,8 +419,9 @@ Research passages:
 
 Please provide a clear, well-referenced answer to the question based on these research passages."""
 
+            ask_model = os.environ.get("INSTINCT_ASK_MODEL", "gpt-4o-mini")
             completion = openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=ask_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
@@ -429,15 +450,19 @@ Please provide a clear, well-referenced answer to the question based on these re
                 "references": references,
             }
 
+        except HTTPException:
+            raise
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+            logger.exception("Error in /api/ask")
+            raise HTTPException(status_code=500, detail="Question answering failed")
 
     @app.get("/api/knowledge-graph")
     async def get_knowledge_graph(
         data_dir: str = Query(DEFAULT_DATA_DIR, description="Data directory"),
     ):
         """Serve the pre-built knowledge graph JSON."""
-        graph_path = Path(data_dir) / "knowledge_graph.json"
+        resolved = _validate_data_dir(data_dir)
+        graph_path = resolved / "knowledge_graph.json"
         if not graph_path.exists():
             raise HTTPException(status_code=404, detail="No knowledge_graph.json found")
 
@@ -457,10 +482,10 @@ Please provide a clear, well-referenced answer to the question based on these re
         data_dir: str = Query(DEFAULT_DATA_DIR, description="Data directory"),
     ):
         """Return the raw Markdown survey content for client-side rendering."""
-        survey_path = Path(data_dir) / "survey.md"
+        resolved = _validate_data_dir(data_dir)
+        survey_path = resolved / "survey.md"
         if not survey_path.exists():
             raise HTTPException(status_code=404, detail="No survey.md found")
-        from fastapi.responses import PlainTextResponse
         return PlainTextResponse(content=survey_path.read_text(),
                                  media_type="text/markdown")
 
