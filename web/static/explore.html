@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Research Explorer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0a0e17; color: #e0e0e0; }
+
+        /* Layout: sidebar + graph */
+        .layout { display: flex; height: 100vh; }
+        .sidebar { width: 420px; background: #111827; border-right: 1px solid #1f2937; display: flex; flex-direction: column; min-height: 0; }
+        .graph-container { flex: 1; position: relative; }
+
+        /* Header */
+        .header { padding: 16px 20px; border-bottom: 1px solid #1f2937; }
+        .header h1 { font-size: 18px; color: #60a5fa; margin-bottom: 4px; }
+        .header p { font-size: 12px; color: #6b7280; }
+
+        /* Query box */
+        .query-section { padding: 16px 20px; border-bottom: 1px solid #1f2937; }
+        .query-input { width: 100%; padding: 10px 14px; background: #1f2937; border: 1px solid #374151; border-radius: 8px; color: #e0e0e0; font-size: 14px; outline: none; }
+        .query-input:focus { border-color: #60a5fa; }
+        .query-input::placeholder { color: #6b7280; }
+        .query-btn { width: 100%; margin-top: 8px; padding: 10px; background: #2563eb; color: white; border: none; border-radius: 8px; font-size: 14px; cursor: pointer; }
+        .query-btn:hover { background: #1d4ed8; }
+        .query-btn:disabled { background: #374151; cursor: not-allowed; }
+
+        /* Results */
+        .results-section { flex: 1; overflow-y: auto; min-height: 0; padding: 0; }
+        .result-card { padding: 14px 20px; border-bottom: 1px solid #1f2937; cursor: pointer; transition: background 0.15s; }
+        .result-card:hover { background: #1f2937; }
+        .result-score { font-size: 11px; color: #60a5fa; font-weight: 600; margin-bottom: 4px; }
+        .result-title { font-size: 13px; color: #93c5fd; margin-bottom: 6px; font-weight: 500; }
+        .result-text { font-size: 12px; color: #9ca3af; line-height: 1.5; }
+        .result-text mark { background: #2563eb33; color: #93c5fd; padding: 0 2px; border-radius: 2px; }
+
+        .no-results { padding: 40px 20px; text-align: center; color: #6b7280; }
+        .loading { padding: 40px 20px; text-align: center; color: #60a5fa; }
+
+        /* Answer styling */
+        .answer-card { padding: 20px; }
+        .answer-text { font-size: 13px; color: #d1d5db; line-height: 1.8; }
+        .answer-text p { margin-bottom: 12px; }
+        .answer-text ul, .answer-text ol { margin: 8px 0 12px 20px; }
+        .answer-text li { margin-bottom: 4px; }
+        .answer-text strong { color: #e0e0e0; }
+        .ref-link { color: #60a5fa; cursor: pointer; font-weight: 600; font-size: 12px; text-decoration: none; }
+        .ref-link:hover { color: #93c5fd; text-decoration: underline; }
+        .references { margin-top: 16px; padding-top: 12px; border-top: 1px solid #1f2937; }
+        .references h4 { font-size: 12px; color: #60a5fa; margin-bottom: 8px; }
+        .ref-item { font-size: 11px; color: #9ca3af; margin-bottom: 6px; line-height: 1.5; }
+        .ref-item a { color: #60a5fa; text-decoration: none; }
+        .ref-item a:hover { text-decoration: underline; }
+
+        /* Graph search */
+        .graph-search { position: absolute; top: 16px; left: 16px; z-index: 10; }
+        .graph-search input { padding: 8px 12px; background: #111827ee; border: 1px solid #374151; border-radius: 6px; color: #e0e0e0; font-size: 13px; width: 220px; outline: none; }
+        .graph-search input:focus { border-color: #60a5fa; }
+
+        /* Legend */
+        .legend { position: absolute; bottom: 16px; left: 16px; background: #111827dd; border: 1px solid #1f2937; border-radius: 8px; padding: 10px 14px; z-index: 10; font-size: 11px; }
+        .legend-item { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+        /* Tooltip */
+        #tooltip { display: none; position: absolute; background: #1f2937; border: 1px solid #374151; border-radius: 8px; padding: 10px 14px; font-size: 12px; max-width: 280px; z-index: 100; pointer-events: none; }
+        #tooltip .title { font-weight: 600; color: #93c5fd; margin-bottom: 4px; }
+        #tooltip .type { color: #6b7280; font-size: 11px; margin-bottom: 4px; }
+        #tooltip .desc { color: #d1d5db; margin-bottom: 4px; }
+        #tooltip .stats { color: #6b7280; font-size: 11px; }
+
+        /* SVG */
+        svg { width: 100%; height: 100%; }
+        .link { stroke-opacity: 0.5; }
+        text { fill: #9ca3af; font-size: 10px; pointer-events: none; }
+
+        /* Tabs */
+        .tabs { display: flex; border-bottom: 1px solid #1f2937; }
+        .tab { flex: 1; padding: 10px; text-align: center; font-size: 13px; color: #6b7280; cursor: pointer; border-bottom: 2px solid transparent; }
+        .tab.active { color: #60a5fa; border-bottom-color: #60a5fa; }
+        .tab:hover { color: #93c5fd; }
+        .tab-content { display: none; flex-direction: column; min-height: 0; flex: 1; overflow: hidden; }
+        .tab-content.active { display: flex; }
+
+        /* Summaries */
+        .summary-card { padding: 16px 20px; border-bottom: 1px solid #1f2937; }
+        .summary-card h3 { font-size: 14px; color: #93c5fd; margin-bottom: 8px; }
+        .summary-card p { font-size: 12px; color: #9ca3af; line-height: 1.6; }
+        .summary-card h4 { font-size: 12px; color: #60a5fa; margin: 10px 0 4px; }
+    </style>
+</head>
+<body>
+    <div id="tooltip"></div>
+    <div class="layout">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="header">
+                <h1>Research Explorer</h1>
+                <p id="subtitle">Explore your research corpus</p>
+            </div>
+
+            <div class="tabs">
+                <div class="tab active" onclick="switchTab('query')">Ask a Question</div>
+                <div class="tab" onclick="switchTab('concepts')">Concepts</div>
+            </div>
+
+            <!-- Query tab -->
+            <div id="tab-query" class="tab-content active">
+                <div class="query-section">
+                    <input type="text" class="query-input" id="query-input"
+                           placeholder="e.g. What are the key findings in this area?"
+                           onkeydown="if(event.key==='Enter') doQuery()">
+                    <button class="query-btn" id="query-btn" onclick="doQuery()">Search</button>
+                </div>
+                <div class="results-section" id="results">
+                    <div class="no-results">Ask a question to search the research corpus</div>
+                </div>
+            </div>
+
+            <!-- Concepts tab -->
+            <div id="tab-concepts" class="tab-content">
+                <div class="query-section">
+                    <input type="text" class="query-input" id="concept-filter"
+                           placeholder="Filter concepts..." oninput="filterConcepts(this.value)">
+                </div>
+                <div class="results-section" id="concept-list"></div>
+            </div>
+        </div>
+
+        <!-- Graph -->
+        <div class="graph-container">
+            <div class="graph-search">
+                <input type="text" placeholder="Search graph..." oninput="searchGraph(this.value)">
+            </div>
+            <svg id="graph-svg"></svg>
+            <div class="legend" id="legend"></div>
+        </div>
+    </div>
+
+    <script>
+    // ── State ──
+    let graphData = null;
+    let graphNode = null;
+    let graphLink = null;
+    let simulation = null;
+    let allConcepts = [];
+
+    const TYPE_COLORS = {
+        disorder: '#E74C3C', test: '#3498DB', therapy: '#2ECC71',
+        technique: '#9B59B6', anatomy: '#E67E22', process: '#1ABC9C',
+        model: '#F39C12', tool: '#4A90D9', symptom: '#E91E63',
+        person: '#795548', definition: '#607D8B',
+        // Fallbacks for math-style types
+        object: '#4A90D9', theorem: '#E74C3C', conjecture: '#F39C12',
+        identity: '#9B59B6', formula: '#1ABC9C',
+    };
+
+    // ── Tabs ──
+    function switchTab(name) {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+        event.target.classList.add('active');
+        document.getElementById('tab-' + name).classList.add('active');
+    }
+
+    // ── Query ──
+    async function doQuery() {
+        const input = document.getElementById('query-input');
+        const q = input.value.trim();
+        if (!q) return;
+
+        const resultsEl = document.getElementById('results');
+        const btn = document.getElementById('query-btn');
+        btn.disabled = true;
+        btn.textContent = 'Thinking...';
+        resultsEl.innerHTML = '<div class="loading">Searching papers and synthesizing answer...</div>';
+
+        try {
+            const resp = await fetch('/api/ask?q=' + encodeURIComponent(q));
+            if (!resp.ok) throw new Error('Search failed');
+            const data = await resp.json();
+
+            // Convert markdown-ish answer to HTML
+            let answerHtml = formatAnswer(data.answer);
+
+            // Build references section
+            let refsHtml = '';
+            if (data.references && data.references.length > 0) {
+                refsHtml = '<div class="references"><h4>References</h4>' +
+                    data.references.map(r => {
+                        const title = r.url
+                            ? `<a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)}</a>`
+                            : esc(r.title);
+                        return `<div class="ref-item">[${r.index}] ${title}</div>`;
+                    }).join('') + '</div>';
+            }
+
+            resultsEl.innerHTML = `
+                <div class="answer-card">
+                    <div class="answer-text">${answerHtml}</div>
+                    ${refsHtml}
+                </div>
+            `;
+        } catch (e) {
+            resultsEl.innerHTML = '<div class="no-results">Error: ' + esc(e.message) + '</div>';
+        }
+        btn.disabled = false;
+        btn.textContent = 'Search';
+    }
+
+    function formatAnswer(text) {
+        // Convert [N] references to styled spans
+        let html = esc(text);
+
+        // Convert reference numbers [1], [2] etc to styled links
+        html = html.replace(/\[(\d+)\]/g, '<span class="ref-link" title="See reference $1">[$1]</span>');
+
+        // Convert **bold** to <strong>
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+        // Convert bullet points
+        html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+        // Convert paragraphs (double newlines)
+        html = html.split('\n\n').map(p => p.trim()).filter(p => p).map(p => {
+            if (p.startsWith('<ul>') || p.startsWith('<ol>')) return p;
+            return '<p>' + p.replace(/\n/g, '<br>') + '</p>';
+        }).join('\n');
+
+        return html;
+    }
+
+    // ── Concepts list ──
+    function filterConcepts(q) {
+        const list = document.getElementById('concept-list');
+        const filtered = q
+            ? allConcepts.filter(c => c.name.toLowerCase().includes(q.toLowerCase()))
+            : allConcepts;
+        renderConceptList(filtered, list);
+    }
+
+    function renderConceptList(concepts, el) {
+        el.innerHTML = concepts.map(c => `
+            <div class="result-card" onclick="highlightNode('${esc(c.name)}')">
+                <div class="result-score" style="color:${TYPE_COLORS[c.type] || '#60a5fa'}">${esc(c.type)}</div>
+                <div class="result-title">${esc(c.display_name || c.name)}</div>
+                <div class="result-text">${esc(c.description || '')} &middot; ${c.papers ? c.papers.length : 0} papers</div>
+            </div>
+        `).join('');
+    }
+
+    // ── Graph ──
+    async function loadGraph() {
+        try {
+            const resp = await fetch('/api/knowledge-graph');
+            if (!resp.ok) return;
+            const graph = await resp.json();
+
+            // Store concepts for the list
+            allConcepts = (graph.concepts || []).sort((a, b) =>
+                (b.papers?.length || 0) - (a.papers?.length || 0)
+            );
+            renderConceptList(allConcepts, document.getElementById('concept-list'));
+
+            // Update subtitle with concept count
+            const subtitle = document.getElementById('subtitle');
+            if (subtitle && allConcepts.length > 0) {
+                subtitle.textContent = `Explore ${allConcepts.length} concepts across your research corpus`;
+            }
+
+            // Prepare viz data
+            const vizResp = await fetch('/api/knowledge-graph');
+            renderGraphViz(graph);
+        } catch (e) {
+            console.error('Failed to load graph:', e);
+        }
+    }
+
+    function renderGraphViz(graph) {
+        // Build nodes and links from the knowledge graph JSON
+        const conceptMap = {};
+        const nodes = [];
+        const links = [];
+
+        // Count degrees
+        const degree = {};
+        for (const e of (graph.edges || [])) {
+            degree[e.source] = (degree[e.source] || 0) + 1;
+            degree[e.target] = (degree[e.target] || 0) + 1;
+        }
+
+        for (const c of (graph.concepts || [])) {
+            const d = degree[c.name] || 0;
+            if (d < 2) continue; // Only show connected concepts
+            const node = {
+                id: c.name,
+                label: c.display_name || c.name,
+                type: c.type || 'object',
+                description: c.description || '',
+                papers: c.papers ? c.papers.length : 0,
+                degree: d,
+                color: TYPE_COLORS[c.type] || '#4A90D9',
+            };
+            nodes.push(node);
+            conceptMap[c.name] = node;
+        }
+
+        for (const e of (graph.edges || [])) {
+            if (conceptMap[e.source] && conceptMap[e.target]) {
+                links.push({ source: e.source, target: e.target, relation: e.relation });
+            }
+        }
+
+        graphData = { nodes, links };
+
+        // Build legend from visible types
+        const types = [...new Set(nodes.map(n => n.type))].sort();
+        document.getElementById('legend').innerHTML =
+            types.map(t => `<div class="legend-item"><span class="legend-dot" style="background:${TYPE_COLORS[t] || '#4A90D9'}"></span>${t}</div>`).join('');
+
+        // D3 force graph
+        const container = document.querySelector('.graph-container');
+        const width = container.clientWidth;
+        const height = container.clientHeight;
+
+        const svg = d3.select('#graph-svg').attr('viewBox', [0, 0, width, height]);
+        svg.selectAll('*').remove();
+        const g = svg.append('g');
+
+        svg.call(d3.zoom().scaleExtent([0.1, 8]).on('zoom', e => g.attr('transform', e.transform)));
+
+        function nodeRadius(d) { return Math.max(4, Math.min(22, 3 + d.degree * 1.5)); }
+
+        simulation = d3.forceSimulation(nodes)
+            .force('link', d3.forceLink(links).id(d => d.id).distance(90))
+            .force('charge', d3.forceManyBody().strength(-150))
+            .force('center', d3.forceCenter(width / 2, height / 2))
+            .force('collision', d3.forceCollide().radius(d => nodeRadius(d) + 3));
+
+        graphLink = g.append('g').selectAll('line')
+            .data(links).join('line')
+            .attr('class', 'link')
+            .attr('stroke', '#7799BB')
+            .attr('stroke-width', 1.5);
+
+        graphNode = g.append('g').selectAll('g')
+            .data(nodes).join('g')
+            .attr('class', 'node')
+            .call(d3.drag()
+                .on('start', (e) => { if (!e.active) simulation.alphaTarget(0.3).restart(); e.subject.fx = e.subject.x; e.subject.fy = e.subject.y; })
+                .on('drag', (e) => { e.subject.fx = e.x; e.subject.fy = e.y; })
+                .on('end', (e) => { if (!e.active) simulation.alphaTarget(0); e.subject.fx = null; e.subject.fy = null; }));
+
+        graphNode.append('circle')
+            .attr('r', d => nodeRadius(d))
+            .attr('fill', d => d.color)
+            .attr('opacity', 0.85);
+
+        graphNode.append('text')
+            .text(d => d.degree >= 3 ? d.label : '')
+            .attr('x', d => nodeRadius(d) + 3)
+            .attr('y', 3);
+
+        // Tooltip
+        const tooltip = d3.select('#tooltip');
+        graphNode.on('mouseover', (e, d) => {
+            tooltip.style('display', 'block')
+                .html(`<div class="title">${esc(d.label)}</div><div class="type">${esc(d.type)}</div>
+                       ${d.description ? `<div class="desc">${esc(d.description)}</div>` : ''}
+                       <div class="stats">${d.papers} papers · ${d.degree} connections</div>`);
+        }).on('mousemove', (e) => {
+            tooltip.style('left', (e.pageX + 15) + 'px').style('top', (e.pageY - 10) + 'px');
+        }).on('mouseout', () => tooltip.style('display', 'none'));
+
+        // Click to highlight
+        graphNode.on('click', (e, d) => {
+            const neighbors = new Set([d.id]);
+            links.forEach(l => {
+                const src = typeof l.source === 'object' ? l.source.id : l.source;
+                const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+                if (src === d.id) neighbors.add(tgt);
+                if (tgt === d.id) neighbors.add(src);
+            });
+            graphNode.select('circle').attr('opacity', n => neighbors.has(n.id) ? 1 : 0.08);
+            graphNode.select('text').text(n => neighbors.has(n.id) ? n.label : '');
+            graphLink.attr('stroke-opacity', l => {
+                const src = typeof l.source === 'object' ? l.source.id : l.source;
+                const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+                return src === d.id || tgt === d.id ? 1 : 0.05;
+            });
+        });
+
+        svg.on('dblclick', () => {
+            graphNode.select('circle').attr('opacity', 0.85);
+            graphNode.select('text').text(d => d.degree >= 3 ? d.label : '');
+            graphLink.attr('stroke-opacity', 0.5);
+        });
+
+        simulation.on('tick', () => {
+            graphLink.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+                     .attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+            graphNode.attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+    }
+
+    function searchGraph(q) {
+        if (!graphData || !graphNode || !graphLink) return;
+        if (!q) {
+            graphNode.select('circle').attr('opacity', 0.85);
+            graphNode.select('text').text(d => d.degree >= 3 ? d.label : '');
+            graphLink.attr('stroke-opacity', 0.5);
+            return;
+        }
+        const ql = q.toLowerCase();
+        const matches = new Set(graphData.nodes.filter(n => n.id.includes(ql) || n.label.toLowerCase().includes(ql)).map(n => n.id));
+        graphNode.select('circle').attr('opacity', n => matches.has(n.id) ? 1 : 0.08);
+        graphNode.select('text').text(n => matches.has(n.id) ? n.label : '');
+    }
+
+    function highlightNode(name) {
+        if (!graphNode) return;
+        const node = graphData.nodes.find(n => n.id === name);
+        if (node) {
+            // Simulate a click on it
+            const neighbors = new Set([node.id]);
+            graphData.links.forEach(l => {
+                const src = typeof l.source === 'object' ? l.source.id : l.source;
+                const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+                if (src === node.id) neighbors.add(tgt);
+                if (tgt === node.id) neighbors.add(src);
+            });
+            graphNode.select('circle').attr('opacity', n => neighbors.has(n.id) ? 1 : 0.08);
+            graphNode.select('text').text(n => neighbors.has(n.id) ? n.label : '');
+            graphLink.attr('stroke-opacity', l => {
+                const src = typeof l.source === 'object' ? l.source.id : l.source;
+                const tgt = typeof l.target === 'object' ? l.target.id : l.target;
+                return src === node.id || tgt === node.id ? 1 : 0.05;
+            });
+        }
+    }
+
+    function esc(s) {
+        if (!s) return '';
+        return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    // Boot
+    loadGraph();
+    </script>
+</body>
+</html>

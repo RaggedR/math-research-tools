@@ -11,14 +11,20 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, File, Query, UploadFile, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from kg.config import SUPPORTED_EXTENSIONS
+import chromadb
+
+from kg.config import SUPPORTED_EXTENSIONS, EMBEDDING_MODEL, load_config
 from kg.extract import extract_concepts, select_representative_chunks
 from kg.graph import build_graph, merge_extractions, prepare_viz_data
 from kg.ingest import extract_file, chunk_text, get_embeddings, ingest_files
+
+# Default data directory: configurable via INSTINCT_DATA_DIR env var
+import os
+DEFAULT_DATA_DIR = os.environ.get("INSTINCT_DATA_DIR", ".")
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +104,10 @@ def create_app() -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def root():
+        # If explore.html exists, serve it as the default page
+        explore_path = static_dir / "explore.html"
+        if explore_path.exists():
+            return HTMLResponse(content=explore_path.read_text())
         index_path = static_dir / "index.html"
         return HTMLResponse(content=index_path.read_text())
 
@@ -243,6 +253,224 @@ def create_app() -> FastAPI:
                 ws_connections[session_id] = [
                     ws for ws in ws_connections[session_id] if ws != websocket
                 ]
+
+    # ── ChromaDB Query API ──────────────────────────────────────────────
+
+    @app.get("/api/query")
+    async def query_rag(
+        q: str = Query(..., description="Question to search for"),
+        data_dir: str = Query(DEFAULT_DATA_DIR, description="Data directory with chroma_db/"),
+        n: int = Query(8, description="Number of results to return"),
+    ):
+        """Search ChromaDB for passages relevant to a question."""
+        chroma_path = Path(data_dir) / "chroma_db"
+        if not chroma_path.exists():
+            raise HTTPException(status_code=404, detail=f"No ChromaDB found at {chroma_path}")
+
+        try:
+            from openai import OpenAI
+            openai_client = OpenAI()
+
+            # Embed the query
+            resp = openai_client.embeddings.create(model=EMBEDDING_MODEL, input=[q[:8000]])
+            query_emb = resp.data[0].embedding
+
+            # Search ChromaDB
+            chroma_client = chromadb.PersistentClient(path=str(chroma_path))
+            collection = chroma_client.get_collection("lit_review")
+            results = collection.query(
+                query_embeddings=[query_emb],
+                n_results=min(n, 20),
+                include=["documents", "metadatas", "distances"],
+            )
+
+            passages = []
+            for doc, meta, dist in zip(
+                results["documents"][0],
+                results["metadatas"][0],
+                results["distances"][0],
+            ):
+                passages.append({
+                    "text": doc[:1000],
+                    "title": meta.get("title", "unknown"),
+                    "source": meta.get("source", "unknown"),
+                    "similarity": round(1 - dist, 3),
+                })
+
+            return {"query": q, "results": passages}
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/ask")
+    async def ask_question(
+        q: str = Query(..., description="Question to ask"),
+        data_dir: str = Query(DEFAULT_DATA_DIR, description="Data directory with chroma_db/"),
+    ):
+        """RAG-powered question answering: retrieve relevant passages, synthesize a narrative."""
+        chroma_path = Path(data_dir) / "chroma_db"
+        if not chroma_path.exists():
+            raise HTTPException(status_code=404, detail=f"No ChromaDB found at {chroma_path}")
+
+        try:
+            from openai import OpenAI
+            openai_client = OpenAI()
+
+            # Step 1: Retrieve relevant passages
+            resp = openai_client.embeddings.create(model=EMBEDDING_MODEL, input=[q[:8000]])
+            query_emb = resp.data[0].embedding
+
+            chroma_client = chromadb.PersistentClient(path=str(chroma_path))
+            collection = chroma_client.get_collection("lit_review")
+            results = collection.query(
+                query_embeddings=[query_emb],
+                n_results=10,
+                include=["documents", "metadatas", "distances"],
+            )
+
+            # Build context with source attribution
+            passages = []
+            for doc, meta, dist in zip(
+                results["documents"][0],
+                results["metadatas"][0],
+                results["distances"][0],
+            ):
+                title = meta.get("title", "unknown")
+                source = meta.get("source", "unknown")
+                # Extract paper ID from source filename or metadata
+                paper_id = meta.get("arxiv_id", "") or meta.get("pmid", "")
+                paper_url = ""
+                if not paper_id and "pmid_" in source:
+                    paper_id = source.replace("pmid_", "").replace(".txt", "").replace(".pdf", "")
+                if paper_id:
+                    if paper_id.startswith("PMC") or paper_id.isdigit():
+                        paper_url = f"https://pubmed.ncbi.nlm.nih.gov/{paper_id}/"
+                    else:
+                        paper_url = f"https://arxiv.org/abs/{paper_id}"
+                passages.append({
+                    "text": doc[:800],
+                    "title": title,
+                    "source": source,
+                    "paper_id": paper_id,
+                    "paper_url": paper_url,
+                    "similarity": round(1 - dist, 3),
+                })
+
+            # Build context string for the LLM
+            context_parts = []
+            for i, p in enumerate(passages):
+                ref = f"[{i+1}]"
+                source_info = p.get("paper_id") or p["source"]
+                context_parts.append(f"{ref} From \"{p['title']}\" ({source_info}):\n{p['text']}")
+            context = "\n\n---\n\n".join(context_parts)
+
+            # Step 2: Synthesize answer with LLM
+            # Load domain-aware system prompt if available
+            domain_config = load_config(data_dir=data_dir)
+            if domain_config.meta_summary_system_prompt:
+                domain_desc = domain_config.meta_summary_system_prompt.strip()
+                system_prompt = f"""{domain_desc}
+
+Answer questions based on the provided research passages.
+
+Rules:
+- Write a clear, well-structured narrative answer
+- Cite sources using [1], [2], etc. matching the passage numbers provided
+- If the passages don't contain enough information to fully answer, say so honestly
+- Use paragraphs and bullet points where appropriate for readability
+- Keep the answer focused and concise (2-4 paragraphs typically)
+- Do not invent information not present in the passages"""
+            else:
+                system_prompt = """You are a knowledgeable research assistant. Answer questions based on the provided research passages.
+
+Rules:
+- Write a clear, well-structured narrative answer
+- Cite sources using [1], [2], etc. matching the passage numbers provided
+- If the passages don't contain enough information to fully answer, say so honestly
+- Use paragraphs and bullet points where appropriate for readability
+- Keep the answer focused and concise (2-4 paragraphs typically)
+- Do not invent information not present in the passages"""
+
+            user_prompt = f"""Question: {q}
+
+Research passages:
+
+{context}
+
+Please provide a clear, well-referenced answer to the question based on these research passages."""
+
+            completion = openai_client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.3,
+                max_tokens=1500,
+            )
+
+            answer = completion.choices[0].message.content
+
+            # Build references list
+            references = []
+            for i, p in enumerate(passages[:10]):
+                ref = {
+                    "index": i + 1,
+                    "title": p["title"],
+                    "source": p["source"],
+                }
+                if p.get("paper_url"):
+                    ref["url"] = p["paper_url"]
+                references.append(ref)
+
+            return {
+                "query": q,
+                "answer": answer,
+                "references": references,
+            }
+
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/api/knowledge-graph")
+    async def get_knowledge_graph(
+        data_dir: str = Query(DEFAULT_DATA_DIR, description="Data directory"),
+    ):
+        """Serve the pre-built knowledge graph JSON."""
+        graph_path = Path(data_dir) / "knowledge_graph.json"
+        if not graph_path.exists():
+            raise HTTPException(status_code=404, detail="No knowledge_graph.json found")
+
+        graph = json.loads(graph_path.read_text())
+        return graph
+
+    @app.get("/explore", response_class=HTMLResponse)
+    async def explore():
+        """Serve the explore/query page."""
+        explore_path = static_dir / "explore.html"
+        if explore_path.exists():
+            return HTMLResponse(content=explore_path.read_text())
+        raise HTTPException(status_code=404, detail="explore.html not found")
+
+    @app.get("/api/survey")
+    async def survey_raw(
+        data_dir: str = Query(DEFAULT_DATA_DIR, description="Data directory"),
+    ):
+        """Return the raw Markdown survey content for client-side rendering."""
+        survey_path = Path(data_dir) / "survey.md"
+        if not survey_path.exists():
+            raise HTTPException(status_code=404, detail="No survey.md found")
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(content=survey_path.read_text(),
+                                 media_type="text/markdown")
+
+    @app.get("/survey", response_class=HTMLResponse)
+    async def survey():
+        """Serve the survey viewer page."""
+        survey_page = static_dir / "survey.html"
+        if survey_page.exists():
+            return HTMLResponse(content=survey_page.read_text())
+        raise HTTPException(status_code=404, detail="survey.html not found")
 
     # Mount static files last so API routes take precedence
     if static_dir.exists():
