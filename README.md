@@ -2,6 +2,8 @@
 
 A unified Python toolkit for research literature analysis: ingest papers, extract concepts, build knowledge graphs, generate summaries, detect structural holes, and produce LaTeX survey papers.
 
+[Live demo: knowledge graph built from q-series and Rogers-Ramanujan identity papers](https://raggedr.github.io/math-research-tools/knowledge_graph.html)
+
 ## Pipeline
 
 ```
@@ -91,8 +93,6 @@ uvicorn web.app:app --reload
 ```
 
 Upload PDFs and build knowledge graphs interactively at http://127.0.0.1:8000.
-
-See a [live example knowledge graph](https://raggedr.github.io/math-research-tools/knowledge_graph.html) built from q-series and Rogers-Ramanujan identity papers.
 
 ## Claude Code Integration
 
