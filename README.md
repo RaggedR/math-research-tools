@@ -92,6 +92,8 @@ uvicorn web.app:app --reload
 
 Upload PDFs and build knowledge graphs interactively at http://127.0.0.1:8000.
 
+See a [live example knowledge graph](https://raggedr.github.io/math-research-tools/knowledge_graph.html) built from q-series and Rogers-Ramanujan identity papers.
+
 ## Claude Code Integration
 
 Copy `commands/` files to `~/.claude/commands/` for `/lit-review` and `/knowledge-graph` slash commands.
