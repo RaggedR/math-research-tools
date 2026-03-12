@@ -4,6 +4,8 @@ A unified Python toolkit for research literature analysis: ingest papers, extrac
 
 [Live demo: knowledge graph built from q-series and Rogers-Ramanujan identity papers](https://raggedr.github.io/math-research-tools/knowledge_graph.html)
 
+[Web app: upload PDFs and build knowledge graphs interactively](https://kg-web-314185672280.australia-southeast1.run.app/)
+
 ## Pipeline
 
 ```
