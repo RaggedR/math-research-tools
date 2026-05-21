@@ -1,0 +1,234 @@
+# Domain configuration: Physical Chemistry — Framework Materials & Enzyme Immobilisation
+# Focus: HOF/MOF biocatalysis, electronic-vibronic effects, redox-centre chemistry
+name: chemistry
+
+# ── Extraction ────────────────────────────────────────────────────────
+extraction_prompt: |
+  You are a physical chemistry and materials-science knowledge extractor.
+  Given text from a research paper, extract:
+
+  1. **Concepts**: Framework materials (MOFs, HOFs, COFs), enzymes and cofactors,
+     characterisation methods, chemical interactions, reaction mechanisms,
+     redox centres, spectroscopic signatures, and key researchers mentioned.
+  2. **Relationships**: How concepts relate to each other — what encapsulates what,
+     which methods characterise which materials, how electronic and vibronic effects
+     modulate reactivity.
+
+  Return JSON with this exact schema:
+  {
+    "concepts": [
+      {
+        "name": "short canonical name (e.g., 'hydrogen-bonded organic framework')",
+        "type": "one of: framework, enzyme, cofactor, characterization-method, interaction, mechanism, redox-center, spectral-feature, material, technique, person, definition",
+        "description": "one sentence description if clear from context"
+      }
+    ],
+    "relationships": [
+      {
+        "source": "concept name (must match a concept above)",
+        "target": "concept name (must match a concept above)",
+        "relation": "one of: encapsulates, coordinates-to, characterized-by, modulates, couples-to, catalyzes, inhibits, stabilizes, subtype_of, synthesized-by, related_to, developed_by",
+        "detail": "brief explanation"
+      }
+    ]
+  }
+
+  Rules:
+  - Use canonical IUPAC or widely accepted names (e.g., "horseradish peroxidase" not "HRP enzyme")
+  - Prefer established nomenclature over ad-hoc descriptions
+  - Extract 3-15 concepts per passage (focus on the most important ones)
+  - Only include relationships that are explicitly stated or clearly implied
+  - For people, only include them if they are credited with developing a specific material,
+    method, or mechanistic insight
+  - Distinguish characterisation methods from the materials/species they probe
+
+concept_types:
+  - framework
+  - enzyme
+  - cofactor
+  - characterization-method
+  - interaction
+  - mechanism
+  - redox-center
+  - spectral-feature
+  - material
+  - technique
+  - person
+  - definition
+
+relationship_types:
+  - encapsulates
+  - coordinates-to
+  - characterized-by
+  - modulates
+  - couples-to
+  - catalyzes
+  - inhibits
+  - stabilizes
+  - subtype_of
+  - synthesized-by
+  - related_to
+  - developed_by
+
+type_colors:
+  framework: "#2980B9"
+  enzyme: "#27AE60"
+  cofactor: "#8E44AD"
+  characterization-method: "#E67E22"
+  interaction: "#16A085"
+  mechanism: "#C0392B"
+  redox-center: "#D35400"
+  spectral-feature: "#7F8C8D"
+  material: "#2C3E50"
+  technique: "#F39C12"
+  person: "#795548"
+  definition: "#607D8B"
+
+normalize:
+  # Framework abbreviations
+  "mof": "metal-organic framework"
+  "mofs": "metal-organic framework"
+  "metal organic framework": "metal-organic framework"
+  "hof": "hydrogen-bonded organic framework"
+  "hofs": "hydrogen-bonded organic framework"
+  "hydrogen bonded organic framework": "hydrogen-bonded organic framework"
+  "cof": "covalent organic framework"
+  "cofs": "covalent organic framework"
+  "covalent organic framework": "covalent organic framework"
+  "zif": "zeolitic imidazolate framework"
+  "zif-8": "zeolitic imidazolate framework-8"
+  "uio-66": "UiO-66"
+  "mil-101": "MIL-101"
+  "pcn": "porous coordination network"
+
+  # Enzymes
+  "hrp": "horseradish peroxidase"
+  "horseradish peroxidase": "horseradish peroxidase"
+  "lac": "laccase"
+  "lip": "lignin peroxidase"
+  "mnp": "manganese peroxidase"
+  "glucose oxidase": "glucose oxidase"
+  "gox": "glucose oxidase"
+  "alcohol oxidase": "alcohol oxidase"
+  "cytochrome c": "cytochrome c"
+  "cyt c": "cytochrome c"
+  "cytochrome p450": "cytochrome P450"
+  "p450": "cytochrome P450"
+
+  # Cofactors and redox centres
+  "heme": "haem"
+  "haem": "haem"
+  "fad": "flavin adenine dinucleotide"
+  "flavin adenine dinucleotide": "flavin adenine dinucleotide"
+  "fmn": "flavin mononucleotide"
+  "nad": "nicotinamide adenine dinucleotide"
+  "nadh": "nicotinamide adenine dinucleotide (reduced)"
+  "nad+": "nicotinamide adenine dinucleotide (oxidised)"
+  "cu": "copper centre"
+  "type-1 copper": "type-1 copper centre"
+  "t1 copper": "type-1 copper centre"
+
+  # Characterisation methods
+  "xrd": "X-ray diffraction"
+  "pxrd": "powder X-ray diffraction"
+  "powder xrd": "powder X-ray diffraction"
+  "sc-xrd": "single-crystal X-ray diffraction"
+  "ftir": "FTIR spectroscopy"
+  "ir spectroscopy": "FTIR spectroscopy"
+  "uv-vis": "UV-vis spectroscopy"
+  "uv/vis": "UV-vis spectroscopy"
+  "uv-visible spectroscopy": "UV-vis spectroscopy"
+  "epr": "EPR spectroscopy"
+  "electron paramagnetic resonance": "EPR spectroscopy"
+  "eseem": "ESEEM spectroscopy"
+  "endor": "ENDOR spectroscopy"
+  "raman": "Raman spectroscopy"
+  "sem": "scanning electron microscopy"
+  "tem": "transmission electron microscopy"
+  "bet": "BET surface area analysis"
+  "bet surface area": "BET surface area analysis"
+  "tga": "thermogravimetric analysis"
+  "dsc": "differential scanning calorimetry"
+  "nmr": "NMR spectroscopy"
+  "cyclic voltammetry": "cyclic voltammetry"
+  "cv": "cyclic voltammetry"
+
+  # Interactions and mechanisms
+  "vibronic coupling": "vibronic coupling"
+  "electron-phonon coupling": "vibronic coupling"
+  "electronic-vibronic coupling": "vibronic coupling"
+  "hydrogen bonding": "hydrogen bonding"
+  "h-bonding": "hydrogen bonding"
+  "pi-pi stacking": "pi-pi stacking"
+  "pi stacking": "pi-pi stacking"
+  "coordination bond": "coordination bond"
+  "pcet": "proton-coupled electron transfer"
+  "proton coupled electron transfer": "proton-coupled electron transfer"
+  "et": "electron transfer"
+  "electron transfer": "electron transfer"
+  "oxidative catalysis": "oxidative catalysis"
+  "reductive catalysis": "reductive catalysis"
+
+# ── Collection names ──────────────────────────────────────────────────
+collection_names:
+  - lit_review
+  - chemistry_papers
+
+ingest_collection: lit_review
+
+# ── Summary generation ────────────────────────────────────────────────
+summary_system_prompt: |
+  You are a physical chemistry encyclopedia writer specialising in framework
+  materials, enzyme immobilisation, and biocatalysis. Write clear, precise
+  reference summaries that bridge structural chemistry (MOF/HOF topology,
+  pore environment) with function (enzyme stability, substrate access,
+  electronic effects). Focus on mechanistic insight and practical relevance
+  for synthetic chemists and materials scientists.
+
+summary_sections:
+  - "## Definition\nPrecise definition of this concept. Include formal names, acronyms, and key structural features where applicable."
+  - "## Structural or Mechanistic Basis\nHow this concept is realised at the molecular or electronic level. Include key interactions, geometries, or pathways."
+  - "## Characterisation\nHow this is measured or identified. Include specific spectroscopic, diffraction, or electrochemical methods."
+  - "## Role in Biocatalysis / Framework Chemistry\nHow this concept functions within MOF/HOF host-guest systems or enzyme immobilisation contexts."
+  - "## Connections\nHow this concept relates to other frameworks, enzymes, mechanisms, or spectral features in the chemistry landscape."
+  - "## References\nList the source papers cited in the passages."
+
+# ── Level 2 theme identification ──────────────────────────────────────
+theme_domain_description: |
+  physical chemistry and materials science, focusing on hydrogen-bonded organic
+  frameworks (HOFs) and metal-organic frameworks (MOFs) as hosts for enzyme
+  immobilisation and biocatalysis; electronic-vibronic coupling effects on redox
+  enzyme activity; EPR and optical spectroscopy of metalloenzyme active sites;
+  copper- and haem-based oxidases (laccase, horseradish peroxidase, cytochrome P450);
+  proton-coupled electron transfer; porous framework design for substrate access;
+  and structural characterisation via XRD, BET, TGA, and FTIR
+
+meta_summary_system_prompt: |
+  You are a physical chemistry research surveyor writing comprehensive overviews
+  of framework-based biocatalysis for materials chemists and biochemists.
+
+l2_graph_domain_description: |
+  physical chemistry, specifically porous framework materials (MOFs, HOFs, COFs)
+  as hosts for enzyme immobilisation, and the electronic/vibronic effects that
+  govern redox enzyme function
+
+# ── Survey generation ─────────────────────────────────────────────────
+survey_section_system: |
+  You are an expert academic survey writer producing LaTeX content for a survey
+  paper on framework-based enzyme immobilisation and biocatalysis.
+  Write in formal academic style with proper LaTeX formatting. Use \label{}
+  for sections/subsections and \ref{} for cross-references. Use \cite{}
+  for citations (cite keys are doi_XXXXXX or openalex_WXXXXXX format).
+  Do NOT include \begin{document} or preamble — just the section content.
+
+survey_abstract_domain: |
+  This survey reviews the immobilisation of oxidoreductase enzymes within
+  porous framework hosts (MOFs, HOFs, COFs), with emphasis on how the host
+  pore environment modulates electronic-vibronic coupling at redox-active
+  centres (haem, copper, FAD), the structural characterisation of
+  host-guest assemblies, and the catalytic consequences for oxidative
+  transformations of industrial and pharmaceutical relevance.
+
+# ── Structural holes ─────────────────────────────────────────────────
+cluster_description_domain: "physical chemistry, framework materials, and enzyme biocatalysis research"
+search_query_domain: "MOF HOF enzyme immobilisation biocatalysis electronic vibronic"
