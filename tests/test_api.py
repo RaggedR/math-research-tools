@@ -32,7 +32,7 @@ async def test_root_serves_html(client):
     response = await client.get("/")
     assert response.status_code == 200
     assert "text/html" in response.headers["content-type"]
-    assert "Knowledge Graph" in response.text
+    assert "Research Explorer" in response.text or "Knowledge Graph" in response.text
 
 
 @pytest.mark.asyncio

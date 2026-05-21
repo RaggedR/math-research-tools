@@ -1,0 +1,217 @@
+# Domain configuration: Audiology (APD, Buffalo Model, auditory training)
+name: audiology
+
+# ── Extraction ────────────────────────────────────────────────────────
+extraction_prompt: |
+  You are an audiology and hearing science knowledge extractor. Given text from a research paper, extract:
+
+  1. **Concepts**: Disorders, diagnostic tests, therapies, auditory processes, anatomical structures,
+     clinical models, assessment tools, and key researchers mentioned.
+  2. **Relationships**: How concepts relate to each other.
+
+  Return JSON with this exact schema:
+  {
+    "concepts": [
+      {
+        "name": "short canonical name (e.g., 'auditory processing disorder')",
+        "type": "one of: disorder, test, therapy, technique, anatomy, process, model, tool, symptom, person, definition",
+        "description": "one sentence description if clear from context"
+      }
+    ],
+    "relationships": [
+      {
+        "source": "concept name (must match a concept above)",
+        "target": "concept name (must match a concept above)",
+        "relation": "one of: diagnoses, treats, measures, comorbid_with, subtype_of, uses, evaluates, developed_by, related_to, contraindicates, causes, improves",
+        "detail": "brief explanation"
+      }
+    ]
+  }
+
+  Rules:
+  - Use canonical clinical names (e.g., "staggered spondaic word test" not "the SSW" or "Katz's test")
+  - Prefer established clinical terminology over ad-hoc descriptions
+  - Extract 3-15 concepts per passage (focus on the most important ones)
+  - Only include relationships that are explicitly stated or clearly implied
+  - For people, only include them if they are credited with developing a specific test, model, or finding
+  - Distinguish between diagnostic tests and therapeutic interventions
+
+concept_types:
+  - disorder
+  - test
+  - therapy
+  - technique
+  - anatomy
+  - process
+  - model
+  - tool
+  - symptom
+  - person
+  - definition
+
+relationship_types:
+  - diagnoses
+  - treats
+  - measures
+  - comorbid_with
+  - subtype_of
+  - uses
+  - evaluates
+  - developed_by
+  - related_to
+  - contraindicates
+  - causes
+  - improves
+
+type_colors:
+  disorder: "#E74C3C"
+  test: "#3498DB"
+  therapy: "#2ECC71"
+  technique: "#9B59B6"
+  anatomy: "#E67E22"
+  process: "#1ABC9C"
+  model: "#F39C12"
+  tool: "#4A90D9"
+  symptom: "#E91E63"
+  person: "#795548"
+  definition: "#607D8B"
+
+normalize:
+  # Disorder names
+  "apd": "auditory processing disorder"
+  "capd": "central auditory processing disorder"
+  "(c)apd": "central auditory processing disorder"
+  "(central) auditory processing disorder": "central auditory processing disorder"
+  "central auditory processing disorders": "central auditory processing disorder"
+  "auditory processing disorders": "auditory processing disorder"
+  "spd": "spatial processing disorder"
+  "adhd": "attention-deficit hyperactivity disorder"
+  "attention deficit hyperactivity disorder": "attention-deficit hyperactivity disorder"
+  "add": "attention-deficit hyperactivity disorder"
+  "asd": "autism spectrum disorder"
+  "sli": "specific language impairment"
+  "developmental dyslexia": "dyslexia"
+  "reading disorder": "dyslexia"
+
+  # Tests
+  "ssw": "staggered spondaic word test"
+  "ssw test": "staggered spondaic word test"
+  "staggered spondaic word": "staggered spondaic word test"
+  "lisn-s": "listening in spatialized noise - sentences test"
+  "lisn s": "listening in spatialized noise - sentences test"
+  "lisn-u": "listening in spatialized noise - universal test"
+  "lisn u": "listening in spatialized noise - universal test"
+  "rgdt": "random gap detection test"
+  "random gap detection": "random gap detection test"
+  "gin": "gaps-in-noise test"
+  "gaps in noise": "gaps-in-noise test"
+  "gaps-in-noise": "gaps-in-noise test"
+  "ddt": "dichotic digits test"
+  "dichotic digit test": "dichotic digits test"
+  "fpt": "frequency pattern test"
+  "frequency patterns test": "frequency pattern test"
+  "dpt": "duration pattern test"
+  "duration patterns test": "duration pattern test"
+  "apdq": "auditory processing domains questionnaire"
+  "scan-3": "SCAN-3 test"
+  "scan-c": "SCAN-C test"
+  "feather squadron": "Feather Squadron test"
+
+  # Models and approaches
+  "buffalo model": "Buffalo Model"
+  "buffalo model approach": "Buffalo Model"
+  "bmt": "Buffalo Model"
+  "bellis-ferre model": "Bellis/Ferre model"
+  "bellis ferre model": "Bellis/Ferre model"
+
+  # Therapies and tools
+  "lisn & learn": "LiSN & Learn"
+  "lisn and learn": "LiSN & Learn"
+  "lace": "LACE auditory training"
+  "acoustic pioneer": "Acoustic Pioneer"
+  "music conservatory": "Music Conservatory"
+
+  # Auditory processes
+  "temporal processing": "temporal auditory processing"
+  "temporal resolution": "temporal auditory processing"
+  "binaural integration": "binaural integration"
+  "dichotic listening": "dichotic listening"
+  "auditory figure-ground": "auditory figure-ground"
+  "speech in noise": "speech-in-noise perception"
+  "speech-in-noise": "speech-in-noise perception"
+  "auditory closure": "auditory closure"
+  "phonemic decoding": "phonemic decoding"
+  "auditory memory": "auditory memory"
+
+  # Anatomy
+  "cans": "central auditory nervous system"
+  "central auditory nervous system": "central auditory nervous system"
+
+  # People
+  "jack katz": "Jack Katz"
+  "katz": "Jack Katz"
+  "bellis": "Teri James Bellis"
+  "ferre": "Jeanane Ferre"
+  "musiek": "Frank Musiek"
+  "chermak": "Gail Chermak"
+  "cameron": "Sharon Cameron"
+  "dillon": "Harvey Dillon"
+
+# ── Collection names ──────────────────────────────────────────────────
+collection_names:
+  - lit_review
+  - audiology_papers
+
+ingest_collection: lit_review
+
+# ── Summary generation ────────────────────────────────────────────────
+summary_system_prompt: |
+  You are a clinical audiology encyclopedia writer. Write clear, precise
+  reference summaries of audiology concepts. Focus on clinical relevance,
+  diagnostic criteria, and evidence-based practice. Use plain language
+  accessible to clinicians and graduate students.
+
+summary_sections:
+  - "## Definition\nPrecise clinical definition of this concept. Include diagnostic criteria where applicable."
+  - "## Clinical Presentation\nHow this presents in patients, typical symptoms, and age of onset."
+  - "## Assessment\nHow this is tested or measured. Include specific test names and normative data where available."
+  - "## Intervention\nEvidence-based treatment approaches and expected outcomes."
+  - "## Connections\nHow this concept relates to other disorders, tests, or processes in the audiology landscape."
+  - "## References\nList the source papers cited in the passages."
+
+# ── Level 2 theme identification ──────────────────────────────────────
+theme_domain_description: |
+  clinical audiology, focusing on auditory processing disorder (APD/CAPD),
+  the Buffalo Model approach (Jack Katz), diagnostic test batteries including
+  the Staggered Spondaic Word test, LiSN-S/U, dichotic listening tests,
+  temporal processing tests, spatial processing disorder, auditory training
+  interventions, computer-based rehabilitation, music therapy, and comorbidities
+  with ADHD, dyslexia, and autism spectrum disorder
+
+meta_summary_system_prompt: |
+  You are a clinical audiology research surveyor writing comprehensive area overviews
+  for practising audiologists and speech-language pathologists.
+
+l2_graph_domain_description: |
+  clinical audiology, specifically auditory processing disorder diagnosis,
+  assessment, and intervention
+
+# ── Survey generation ─────────────────────────────────────────────────
+survey_section_system: |
+  You are an expert academic survey writer producing LaTeX content for a
+  survey paper on auditory processing disorder and its clinical management.
+  Write in formal academic style with proper LaTeX formatting. Use \label{}
+  for sections/subsections and \ref{} for cross-references. Use \cite{}
+  for citations (cite keys are pmid_NNNNNNNN format, e.g., pmid_2035945).
+  Do NOT include \begin{document} or preamble — just the section content.
+
+survey_abstract_domain: |
+  This survey provides a comprehensive review of auditory processing disorder
+  (APD/CAPD), covering diagnostic approaches including the Buffalo Model and
+  Central Test Battery, assessment tools such as the Staggered Spondaic Word
+  test and LiSN-S, and evidence-based interventions including auditory training
+  programs, speech-in-noise therapy, and music-based rehabilitation.
+
+# ── Structural holes ─────────────────────────────────────────────────
+cluster_description_domain: "audiology and auditory processing disorder research"
+search_query_domain: "auditory processing disorder research"

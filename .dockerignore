@@ -6,7 +6,9 @@ __pycache__
 .venv
 venv
 tmp
-chroma_db
+chroma_db/
 .env
 .DS_Store
-tests
+tests/
+*.log
+fly.toml

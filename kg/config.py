@@ -40,8 +40,16 @@ class DomainConfig:
     collection_names: list = field(default_factory=lambda: ["lit_review"])
     ingest_collection: str = "lit_review"
     summary_system_prompt: str = ""
+    summary_sections: list = field(default_factory=list)
     concept_types: list = field(default_factory=list)
     relationship_types: list = field(default_factory=list)
+    theme_domain_description: str = ""
+    meta_summary_system_prompt: str = ""
+    l2_graph_domain_description: str = ""
+    survey_section_system: str = ""
+    survey_abstract_domain: str = ""
+    cluster_description_domain: str = ""
+    search_query_domain: str = ""
 
 
 def _load_yaml(path):
