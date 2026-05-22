@@ -2,10 +2,10 @@
 """
 lit_review.py — Literature review: search, rank, download.
 
-Supports arXiv and PubMed sources.
+Supports arXiv, PubMed, and OpenAlex sources.
 
 Usage:
-    python3 lit_review.py search "query" --dir /path [--source arxiv|pubmed] [--max-papers 50] [--abstracts-only]
+    python3 lit_review.py search "query" --dir /path [--source arxiv|pubmed|openalex] [--max-papers 50] [--abstracts-only]
     python3 lit_review.py cleanup --dir /path --keep 50 "overall topic description"
     python3 lit_review.py list --dir /path
 """
@@ -34,6 +34,10 @@ ARXIV_DELAY = 3  # seconds between arXiv requests
 PUBMED_ESEARCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
 PUBMED_EFETCH = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi"
 PUBMED_DELAY = 1  # seconds between PubMed requests (3 req/s without key)
+
+OPENALEX_API = "https://api.openalex.org/works"
+OPENALEX_DELAY = 0.1  # seconds between OpenAlex requests (generous rate limits)
+OPENALEX_EMAIL = "langer.robin@gmail.com"  # polite pool — faster responses
 
 # SSL context for HTTPS requests (macOS Python sometimes lacks system certs)
 _ssl_ctx = ssl.create_default_context()
@@ -296,6 +300,155 @@ def _parse_pubmed_article(article_el):
     }
 
 
+# ── OpenAlex API ──────────────────────────────────────────────────────
+
+def _openalex_abstract(inverted_index):
+    """Reconstruct plain-text abstract from OpenAlex abstract_inverted_index.
+
+    OpenAlex stores abstracts as {word: [position, ...]} mappings rather than
+    plain text (a compact representation that avoids copyright issues).  This
+    helper reverses the mapping back into a readable string.
+
+    Args:
+        inverted_index: dict mapping each word to a list of integer positions,
+            e.g. {"The": [0], "effect": [1], "of": [2], ...}.  May be None.
+
+    Returns:
+        Reconstructed abstract string, or empty string if the index is absent
+        or empty.
+    """
+    if not inverted_index:
+        return ''
+    # Build a position→word mapping, then sort and join.
+    position_word = {}
+    for word, positions in inverted_index.items():
+        for pos in positions:
+            position_word[pos] = word
+    if not position_word:
+        return ''
+    ordered = [position_word[i] for i in sorted(position_word)]
+    return ' '.join(ordered)
+
+
+def search_openalex(query_terms, max_results=200):
+    """Search OpenAlex API and return a list of paper metadata dicts.
+
+    Uses the polite-pool endpoint (mailto parameter) for better rate limits.
+    Skips records that have no reconstructible abstract, matching the behaviour
+    of the other source functions which require an abstract for embedding.
+
+    Args:
+        query_terms: Free-text query string.
+        max_results: Maximum number of results to return (default 200).
+
+    Returns:
+        List of paper dicts with keys: base_id, title, abstract, authors,
+        published, pdf_url, doi, source.
+    """
+    candidates = []
+    page_size = min(200, max_results)  # OpenAlex allows up to 200 per page
+    pages_needed = (max_results + page_size - 1) // page_size
+
+    for page in range(1, pages_needed + 1):
+        remaining = max_results - len(candidates)
+        fetch = min(page_size, remaining)
+
+        params = urllib.parse.urlencode({
+            'search': query_terms,
+            'per-page': fetch,
+            'page': page,
+            'mailto': OPENALEX_EMAIL,
+        })
+        url = f"{OPENALEX_API}?{params}"
+
+        if page > 1:
+            print(f"  Waiting {OPENALEX_DELAY}s before next OpenAlex page...")
+            time.sleep(OPENALEX_DELAY)
+
+        print(f"  Fetching OpenAlex results (page {page})...")
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'lit-review-tool/1.0'})
+            with urllib.request.urlopen(req, timeout=30, context=_ssl_ctx) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+        except Exception as e:
+            print(f"  Warning: OpenAlex API request failed: {e}")
+            break
+
+        results = data.get('results', [])
+        if not results:
+            break
+
+        for work in results:
+            paper = _parse_openalex_work(work)
+            if paper:
+                candidates.append(paper)
+
+        if len(results) < fetch:
+            break  # Fewer results than requested — no more pages
+
+    return candidates
+
+
+def _parse_openalex_work(work):
+    """Parse a single OpenAlex work object into a paper metadata dict.
+
+    Returns None if the work lacks an abstract (we need it for embedding).
+
+    The returned dict shape matches _parse_pubmed_article: base_id, title,
+    abstract, authors, published, pdf_url, doi, source.
+    """
+    # Abstract — skip works with no usable abstract
+    abstract = _openalex_abstract(work.get('abstract_inverted_index'))
+    if not abstract.strip():
+        return None
+
+    title = (work.get('title') or '').strip()
+    if not title:
+        return None
+
+    # Stable identifier: prefer DOI, fall back to OpenAlex ID
+    doi = work.get('doi')  # e.g. "https://doi.org/10.1021/..."
+    openalex_id = work.get('id', '')  # e.g. "https://openalex.org/W2741809807"
+    short_id = openalex_id.split('/')[-1] if openalex_id else ''
+
+    if doi:
+        # Normalise to bare DOI path (strip "https://doi.org/")
+        bare_doi = doi.replace('https://doi.org/', '').replace('http://doi.org/', '')
+        base_id = f"doi_{bare_doi.replace('/', '_').replace('.', '_')}"
+    elif short_id:
+        base_id = f"openalex_{short_id}"
+    else:
+        return None  # No usable identifier
+
+    # Authors
+    authors = []
+    for authorship in work.get('authorships', []):
+        author = authorship.get('author', {})
+        name = author.get('display_name', '').strip()
+        if name:
+            authors.append(name)
+
+    # Publication year → published string (consistent with PubMed's year-only fallback)
+    year = work.get('publication_year')
+    published = str(year) if year else ''
+
+    # PDF URL: OpenAlex exposes open-access PDF via best_oa_location
+    pdf_url = None
+    best_oa = work.get('best_oa_location') or {}
+    pdf_url = best_oa.get('pdf_url')  # None for paywalled works — intentional
+
+    return {
+        'base_id': base_id,
+        'title': ' '.join(title.split()),
+        'abstract': ' '.join(abstract.split()),
+        'authors': authors,
+        'published': published,
+        'pdf_url': pdf_url,
+        'doi': doi,
+        'source': 'openalex',
+    }
+
+
 # ── Embedding-based ranking ───────────────────────────────────────────
 
 def rank_by_relevance(query_text, candidates, openai_client, top_n=50):
@@ -361,6 +514,8 @@ def cmd_search(query_terms, output_dir, max_papers=50, abstracts_only=False, sou
     print(f"[Phase 1/3] Searching {source}...")
     if source == 'pubmed':
         candidates = search_pubmed(query_terms, max_results=200)
+    elif source == 'openalex':
+        candidates = search_openalex(query_terms, max_results=200)
     else:
         candidates = search_arxiv(query_terms, max_results=200)
     print(f"  Found {len(candidates)} candidates\n")
@@ -416,7 +571,12 @@ def cmd_search(query_terms, output_dir, max_papers=50, abstracts_only=False, sou
     # Download PDFs (unless abstracts-only)
     downloaded = 0
     skipped_no_pdf = 0
-    delay = PUBMED_DELAY if source == 'pubmed' else ARXIV_DELAY
+    if source == 'pubmed':
+        delay = PUBMED_DELAY
+    elif source == 'openalex':
+        delay = OPENALEX_DELAY
+    else:
+        delay = ARXIV_DELAY
     if abstracts_only:
         print("[Phase 3/3] Skipping PDF download (--abstracts-only)")
     else:
@@ -617,8 +777,8 @@ def main():
                 i += 2
             elif args[i] == '--source' and i + 1 < len(args):
                 source = args[i + 1].lower()
-                if source not in ('arxiv', 'pubmed'):
-                    print(f"Error: --source must be 'arxiv' or 'pubmed', got '{source}'")
+                if source not in ('arxiv', 'pubmed', 'openalex'):
+                    print(f"Error: --source must be 'arxiv', 'pubmed', or 'openalex', got '{source}'")
                     sys.exit(1)
                 i += 2
             elif args[i] == '--abstracts-only':
